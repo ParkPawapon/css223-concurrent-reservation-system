@@ -1,0 +1,22 @@
+name: css223-concurrent-reservation-system
+
+services:
+  development:
+    image: css223-concurrent-reservation-system:development
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    command: ["sleep", "infinity"]
+    init: true
+    working_dir: /workspace
+    volumes:
+      - type: bind
+        source: .
+        target: /workspace
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    stop_grace_period: 10s

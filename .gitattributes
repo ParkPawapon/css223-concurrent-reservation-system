@@ -1,0 +1,23 @@
+* text=auto
+
+.dockerignore text eol=lf
+.gitattributes text eol=lf
+Dockerfile text eol=lf
+*.c text eol=lf
+*.cc text eol=lf
+*.cmake text eol=lf
+*.cpp text eol=lf
+*.cxx text eol=lf
+*.h text eol=lf
+*.hh text eol=lf
+*.hpp text eol=lf
+*.hxx text eol=lf
+*.sh text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+*.gif binary
+*.jpeg binary
+*.jpg binary
+*.pdf binary
+*.png binary
