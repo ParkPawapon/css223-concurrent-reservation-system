@@ -1,0 +1,59 @@
+# Version-control metadata
+.git
+.github
+
+# Docker orchestration files are not application source
+.dockerignore
+Dockerfile*
+compose*.yaml
+compose*.yml
+docker-compose*.yaml
+docker-compose*.yml
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.crt
+*.key
+*.p12
+*.pem
+*.pfx
+
+# Build and test output
+build
+build-*
+cmake-build-*
+out
+bin
+dist
+CMakeCache.txt
+CMakeFiles
+compile_commands.json
+*.a
+*.dll
+*.dylib
+*.exe
+*.gcda
+*.gcno
+*.log
+*.o
+*.obj
+*.pdb
+*.profdata
+*.profraw
+*.so
+*.so.*
+
+# IDE, editor, and operating-system metadata
+.idea
+.vs
+.vscode
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Documentation is not required to build the application image
+docs
