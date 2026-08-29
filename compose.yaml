@@ -20,3 +20,23 @@ services:
       - no-new-privileges:true
     pids_limit: 512
     stop_grace_period: 10s
+
+  test-tsan:
+    profiles: ["tests"]
+    image: css223-concurrent-reservation-system:development
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    command: ["cmake", "--workflow", "--preset", "workflow-test-tsan"]
+    init: true
+    working_dir: /workspace
+    network_mode: none
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      # LLVM 18 TSan needs personality() for its shadow-memory address space.
+      # Keep this relaxation isolated from development and production services.
+      - seccomp=unconfined
+    pids_limit: 512

@@ -23,9 +23,11 @@ RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
         build-essential \
         ca-certificates \
+        clang \
         clang-format \
         clang-tidy \
         cmake \
+        libclang-rt-dev \
         ninja-build \
         pkg-config \
     && rm -rf /var/lib/apt/lists/*
@@ -61,7 +63,7 @@ RUN apt-get update \
 
 WORKDIR /app
 
-USER app:app
+USER 10001:10001
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 
@@ -74,6 +76,6 @@ COPY --chown=ubuntu:ubuntu . /workspace
 
 ENV HOME=/home/ubuntu
 
-USER ubuntu:ubuntu
+USER 1000:1000
 
 CMD ["/bin/bash"]

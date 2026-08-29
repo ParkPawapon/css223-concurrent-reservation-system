@@ -20,6 +20,7 @@
         "deprecated": true
       },
       "cacheVariables": {
+        "BUILD_TESTING": "OFF",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CSS223_ENABLE_CLANG_TIDY": "OFF",
         "CSS223_WARNINGS_AS_ERRORS": "OFF",
@@ -56,21 +57,39 @@
       }
     },
     {
-      "name": "sanitize-address",
-      "displayName": "Address and Undefined Behavior Sanitizers",
-      "description": "Debug build instrumented with AddressSanitizer and UndefinedBehaviorSanitizer",
+      "name": "test-debug",
+      "displayName": "Debug Tests",
+      "description": "Debug build with CTest suites enabled",
       "inherits": "debug",
       "cacheVariables": {
-        "CSS223_ENABLE_ADDRESS_SANITIZER": "ON",
+        "BUILD_TESTING": "ON"
+      }
+    },
+    {
+      "name": "sanitize-address",
+      "displayName": "AddressSanitizer Tests",
+      "description": "Dedicated test build instrumented with AddressSanitizer",
+      "inherits": "test-debug",
+      "cacheVariables": {
+        "CSS223_ENABLE_ADDRESS_SANITIZER": "ON"
+      }
+    },
+    {
+      "name": "sanitize-undefined",
+      "displayName": "UndefinedBehaviorSanitizer Tests",
+      "description": "Dedicated test build instrumented with UndefinedBehaviorSanitizer",
+      "inherits": "test-debug",
+      "cacheVariables": {
         "CSS223_ENABLE_UNDEFINED_SANITIZER": "ON"
       }
     },
     {
       "name": "sanitize-thread",
-      "displayName": "ThreadSanitizer",
-      "description": "Debug build instrumented with ThreadSanitizer for data-race detection",
-      "inherits": "debug",
+      "displayName": "ThreadSanitizer Tests",
+      "description": "Dedicated test build instrumented with ThreadSanitizer for data-race detection",
+      "inherits": "test-debug",
       "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "clang++",
         "CSS223_ENABLE_THREAD_SANITIZER": "ON"
       }
     }
@@ -89,12 +108,136 @@
       "configurePreset": "quality"
     },
     {
+      "name": "test-unit",
+      "configurePreset": "test-debug"
+    },
+    {
+      "name": "test-integration",
+      "configurePreset": "test-debug"
+    },
+    {
+      "name": "test-concurrency",
+      "configurePreset": "test-debug"
+    },
+    {
       "name": "sanitize-address",
       "configurePreset": "sanitize-address"
     },
     {
+      "name": "sanitize-undefined",
+      "configurePreset": "sanitize-undefined"
+    },
+    {
       "name": "sanitize-thread",
       "configurePreset": "sanitize-thread"
+    },
+    {
+      "name": "test-asan",
+      "configurePreset": "sanitize-address"
+    },
+    {
+      "name": "test-ubsan",
+      "configurePreset": "sanitize-undefined"
+    },
+    {
+      "name": "test-tsan",
+      "configurePreset": "sanitize-thread"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test-base",
+      "hidden": true,
+      "output": {
+        "outputOnFailure": true,
+        "testOutputTruncation": "tail",
+        "maxTestNameWidth": 100
+      }
+    },
+    {
+      "name": "test-unit",
+      "displayName": "Unit Tests",
+      "configurePreset": "test-debug",
+      "inherits": "test-base",
+      "filter": {
+        "include": {
+          "label": "^unit$"
+        }
+      },
+      "execution": {
+        "timeout": 60,
+        "noTestsAction": "ignore"
+      }
+    },
+    {
+      "name": "test-integration",
+      "displayName": "Integration Tests",
+      "configurePreset": "test-debug",
+      "inherits": "test-base",
+      "filter": {
+        "include": {
+          "label": "^integration$"
+        }
+      },
+      "execution": {
+        "timeout": 180,
+        "noTestsAction": "ignore"
+      }
+    },
+    {
+      "name": "test-concurrency",
+      "displayName": "Concurrency Tests",
+      "configurePreset": "test-debug",
+      "inherits": "test-base",
+      "filter": {
+        "include": {
+          "label": "^concurrency$"
+        }
+      },
+      "execution": {
+        "timeout": 300,
+        "noTestsAction": "ignore"
+      }
+    },
+    {
+      "name": "test-asan",
+      "displayName": "AddressSanitizer Test Suite",
+      "configurePreset": "sanitize-address",
+      "inherits": "test-base",
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1"
+      },
+      "execution": {
+        "timeout": 300,
+        "noTestsAction": "ignore"
+      }
+    },
+    {
+      "name": "test-ubsan",
+      "displayName": "UndefinedBehaviorSanitizer Test Suite",
+      "configurePreset": "sanitize-undefined",
+      "inherits": "test-base",
+      "environment": {
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
+      },
+      "execution": {
+        "timeout": 300,
+        "noTestsAction": "ignore"
+      }
+    },
+    {
+      "name": "test-tsan",
+      "displayName": "ThreadSanitizer Test Suite",
+      "configurePreset": "sanitize-thread",
+      "inherits": "test-base",
+      "environment": {
+        "TSAN_OPTIONS": "halt_on_error=1"
+      },
+      "execution": {
+        "jobs": 1,
+        "timeout": 600,
+        "noTestsAction": "ignore"
+      }
     }
   ],
   "workflowPresets": [
@@ -141,8 +284,116 @@
       ]
     },
     {
+      "name": "workflow-test-unit",
+      "displayName": "Configure, build, and run unit tests",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "test-debug"
+        },
+        {
+          "type": "build",
+          "name": "test-unit"
+        },
+        {
+          "type": "test",
+          "name": "test-unit"
+        }
+      ]
+    },
+    {
+      "name": "workflow-test-integration",
+      "displayName": "Configure, build, and run integration tests",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "test-debug"
+        },
+        {
+          "type": "build",
+          "name": "test-integration"
+        },
+        {
+          "type": "test",
+          "name": "test-integration"
+        }
+      ]
+    },
+    {
+      "name": "workflow-test-concurrency",
+      "displayName": "Configure, build, and run concurrency tests",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "test-debug"
+        },
+        {
+          "type": "build",
+          "name": "test-concurrency"
+        },
+        {
+          "type": "test",
+          "name": "test-concurrency"
+        }
+      ]
+    },
+    {
+      "name": "workflow-test-asan",
+      "displayName": "Configure, build, and run tests with AddressSanitizer",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "sanitize-address"
+        },
+        {
+          "type": "build",
+          "name": "test-asan"
+        },
+        {
+          "type": "test",
+          "name": "test-asan"
+        }
+      ]
+    },
+    {
+      "name": "workflow-test-ubsan",
+      "displayName": "Configure, build, and run tests with UndefinedBehaviorSanitizer",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "sanitize-undefined"
+        },
+        {
+          "type": "build",
+          "name": "test-ubsan"
+        },
+        {
+          "type": "test",
+          "name": "test-ubsan"
+        }
+      ]
+    },
+    {
+      "name": "workflow-test-tsan",
+      "displayName": "Configure, build, and run tests with ThreadSanitizer",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "sanitize-thread"
+        },
+        {
+          "type": "build",
+          "name": "test-tsan"
+        },
+        {
+          "type": "test",
+          "name": "test-tsan"
+        }
+      ]
+    },
+    {
       "name": "workflow-sanitize-address",
-      "displayName": "Configure and build with address sanitizers",
+      "displayName": "Configure and build with AddressSanitizer",
       "steps": [
         {
           "type": "configure",
@@ -151,6 +402,20 @@
         {
           "type": "build",
           "name": "sanitize-address"
+        }
+      ]
+    },
+    {
+      "name": "workflow-sanitize-undefined",
+      "displayName": "Configure and build with UndefinedBehaviorSanitizer",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "sanitize-undefined"
+        },
+        {
+          "type": "build",
+          "name": "sanitize-undefined"
         }
       ]
     },
