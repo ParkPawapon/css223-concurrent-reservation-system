@@ -35,7 +35,7 @@ jobs:
           persist-credentials: false
 
       - name: Lint Dockerfile
-        run: docker run --rm --interactive "$HADOLINT_IMAGE" --ignore DL3008 - <Dockerfile
+        run: docker run --rm --interactive --entrypoint hadolint "$HADOLINT_IMAGE" --ignore DL3008 - <Dockerfile
 
       - name: Validate Compose configuration
         run: docker compose --profile tests config --quiet
