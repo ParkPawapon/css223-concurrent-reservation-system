@@ -2,6 +2,9 @@
 
 .dockerignore text eol=lf
 .gitattributes text eol=lf
+.gitignore text eol=lf
+CMakeLists.txt text eol=lf
+CMakePresets.json text eol=lf
 Dockerfile text eol=lf
 *.c text eol=lf
 *.cc text eol=lf

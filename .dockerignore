@@ -1,5 +1,7 @@
 # Version-control metadata
 .git
+.gitattributes
+.gitignore
 .github
 
 # Docker orchestration files are not application source
@@ -14,6 +16,7 @@ docker-compose*.yml
 .env
 .env.*
 !.env.example
+CMakeUserPresets.json
 *.crt
 *.key
 *.p12

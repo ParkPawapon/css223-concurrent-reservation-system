@@ -1,0 +1,53 @@
+# CMake-generated files and build trees
+/build/
+/build-*/
+/cmake-build-*/
+/out/
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
+Testing/
+cmake_install.cmake
+compile_commands.json
+install_manifest.txt
+Makefile
+*.ninja
+.ninja_deps
+.ninja_log
+
+# Developer-local CMake configuration
+CMakeUserPresets.json
+
+# Compiled binaries and intermediate files
+*.a
+*.dll
+*.dylib
+*.exe
+*.lib
+*.o
+*.obj
+*.pdb
+*.so
+*.so.*
+*.dSYM/
+
+# Coverage and profiling output
+*.gcda
+*.gcno
+*.profdata
+*.profraw
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE, editor, and operating-system metadata
+.idea/
+.vs/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
