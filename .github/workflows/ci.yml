@@ -1,0 +1,239 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: "2"
+  CTEST_OUTPUT_ON_FAILURE: "1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Build (${{ matrix.compiler.name }}, ${{ matrix.preset }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - name: GCC
+            executable: g++
+            package: g++
+          - name: Clang
+            executable: clang++
+            package: clang
+        preset: [debug, release]
+    env:
+      BUILD_PRESET: ${{ matrix.preset }}
+      COMPILER_PACKAGE: ${{ matrix.compiler.package }}
+      CXX_COMPILER: ${{ matrix.compiler.executable }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            cmake \
+            "$COMPILER_PACKAGE" \
+            ninja-build
+
+      - name: Configure CMake
+        run: cmake --preset "$BUILD_PRESET" -DCMAKE_CXX_COMPILER="$CXX_COMPILER"
+
+      - name: Build
+        run: cmake --build --preset "$BUILD_PRESET"
+
+  formatting:
+    name: Formatting
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends clang-format
+
+      - name: Validate formatting configuration
+        run: clang-format --style=file --dump-config >/dev/null
+
+      - name: Check C and C++ formatting
+        run: |
+          mapfile -d '' sources < <(
+            git ls-files -z -- \
+              '*.c' '*.cc' '*.cpp' '*.cxx' \
+              '*.h' '*.hh' '*.hpp' '*.hxx'
+          )
+
+          if (( ${#sources[@]} > 0 )); then
+            clang-format --style=file --dry-run --Werror "${sources[@]}"
+          fi
+
+  static-analysis:
+    name: Clang-Tidy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install analysis dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            clang-tidy \
+            cmake \
+            g++ \
+            ninja-build
+
+      - name: Verify clang-tidy configuration
+        run: clang-tidy --verify-config
+
+      - name: Configure and build with clang-tidy
+        run: cmake --workflow --preset workflow-quality
+
+  tests:
+    name: Tests (${{ matrix.suite }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [unit, integration, concurrency]
+    env:
+      TEST_WORKFLOW: workflow-test-${{ matrix.suite }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            cmake \
+            g++ \
+            ninja-build
+
+      - name: Configure, build, and run test suite
+        run: cmake --workflow --preset "$TEST_WORKFLOW"
+
+  sanitizers:
+    name: Sanitizer (${{ matrix.sanitizer }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [asan, ubsan]
+    env:
+      TEST_WORKFLOW: workflow-test-${{ matrix.sanitizer }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install sanitizer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            cmake \
+            g++ \
+            ninja-build
+
+      - name: Configure, build, and run sanitizer suite
+        run: cmake --workflow --preset "$TEST_WORKFLOW"
+
+  thread-sanitizer:
+    name: ThreadSanitizer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install ThreadSanitizer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            clang \
+            cmake \
+            libclang-rt-dev \
+            ninja-build
+
+      - name: Configure, build, and run ThreadSanitizer suite
+        run: cmake --workflow --preset workflow-test-tsan
+
+  required:
+    name: CI Required
+    if: ${{ always() }}
+    needs:
+      - build
+      - formatting
+      - static-analysis
+      - tests
+      - sanitizers
+      - thread-sanitizer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      BUILD_RESULT: ${{ needs.build.result }}
+      FORMATTING_RESULT: ${{ needs.formatting.result }}
+      STATIC_ANALYSIS_RESULT: ${{ needs.static-analysis.result }}
+      TEST_RESULT: ${{ needs.tests.result }}
+      SANITIZER_RESULT: ${{ needs.sanitizers.result }}
+      THREAD_SANITIZER_RESULT: ${{ needs.thread-sanitizer.result }}
+    steps:
+      - name: Require every CI job to pass
+        run: |
+          results=(
+            "$BUILD_RESULT"
+            "$FORMATTING_RESULT"
+            "$STATIC_ANALYSIS_RESULT"
+            "$TEST_RESULT"
+            "$SANITIZER_RESULT"
+            "$THREAD_SANITIZER_RESULT"
+          )
+
+          for result in "${results[@]}"; do
+            if [[ "$result" != "success" ]]; then
+              echo "A required CI dependency finished with status: $result" >&2
+              exit 1
+            fi
+          done

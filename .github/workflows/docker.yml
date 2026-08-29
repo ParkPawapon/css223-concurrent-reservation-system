@@ -1,0 +1,146 @@
+name: Docker
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint:
+    name: Dockerfile and Compose Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      HADOLINT_IMAGE: >-
+        ghcr.io/hadolint/hadolint:v2.15.0-debian@sha256:cc00266a16707bbbdfd29517cccd76164ac46a956e2ba8222515df5691fa54b5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Lint Dockerfile
+        run: docker run --rm --interactive "$HADOLINT_IMAGE" --ignore DL3008 - <Dockerfile
+
+      - name: Validate Compose configuration
+        run: docker compose --profile tests config --quiet
+
+  build-check:
+    name: Docker Build Check (${{ matrix.target }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [development, runtime-base]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        with:
+          version: v0.36.1
+
+      - name: Run BuildKit checks
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          call: check
+          context: .
+          file: ./Dockerfile
+          pull: true
+          target: ${{ matrix.target }}
+
+  image-build:
+    name: Build ${{ matrix.target }} (${{ matrix.platform.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [development, runtime-base]
+        platform:
+          - name: linux/amd64
+            cache: linux-amd64
+            emulated: false
+          - name: linux/arm64
+            cache: linux-arm64
+            emulated: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up QEMU
+        if: ${{ matrix.platform.emulated }}
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        with:
+          image: >-
+            tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        with:
+          version: v0.36.1
+
+      - name: Build image target
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform.cache }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}-${{ matrix.platform.cache }}
+          context: .
+          file: ./Dockerfile
+          outputs: type=cacheonly
+          platforms: ${{ matrix.platform.name }}
+          pull: true
+          target: ${{ matrix.target }}
+
+  required:
+    name: Docker Required
+    if: ${{ always() }}
+    needs:
+      - lint
+      - build-check
+      - image-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      LINT_RESULT: ${{ needs.lint.result }}
+      BUILD_CHECK_RESULT: ${{ needs.build-check.result }}
+      IMAGE_BUILD_RESULT: ${{ needs.image-build.result }}
+    steps:
+      - name: Require every Docker job to pass
+        run: |
+          results=(
+            "$LINT_RESULT"
+            "$BUILD_CHECK_RESULT"
+            "$IMAGE_BUILD_RESULT"
+          )
+
+          for result in "${results[@]}"; do
+            if [[ "$result" != "success" ]]; then
+              echo "A required Docker dependency finished with status: $result" >&2
+              exit 1
+            fi
+          done
