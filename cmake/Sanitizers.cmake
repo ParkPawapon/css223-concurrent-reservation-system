@@ -31,6 +31,13 @@ function(css223_enable_sanitizers target_name)
         return()
     endif()
 
+    if(NOT BUILD_TESTING)
+        message(FATAL_ERROR
+            "Sanitizers are restricted to dedicated test builds. "
+            "Configure with a sanitizer test preset instead"
+        )
+    endif()
+
     if(NOT CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")
         message(FATAL_ERROR
             "The selected sanitizers require GCC or Clang; detected ${CMAKE_CXX_COMPILER_ID}"
@@ -42,6 +49,7 @@ function(css223_enable_sanitizers target_name)
     target_compile_options("${target_name}" INTERFACE
         "-fsanitize=${sanitizer_list}"
         -fno-omit-frame-pointer
+        -O1
     )
     target_link_options("${target_name}" INTERFACE
         "-fsanitize=${sanitizer_list}"

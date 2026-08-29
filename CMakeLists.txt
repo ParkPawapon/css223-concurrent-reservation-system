@@ -27,6 +27,14 @@ set(
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+option(BUILD_TESTING "Build the CSS223 test suites" OFF)
+include(CTest)
+
 include(ProjectOptions)
 
 css223_setup_project_options()
+
+if(BUILD_TESTING)
+    include(Testing)
+    add_subdirectory(tests)
+endif()
