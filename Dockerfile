@@ -23,6 +23,8 @@ RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
         build-essential \
         ca-certificates \
+        clang-format \
+        clang-tidy \
         cmake \
         ninja-build \
         pkg-config \

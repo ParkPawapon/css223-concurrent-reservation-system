@@ -21,6 +21,7 @@
       },
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CSS223_ENABLE_CLANG_TIDY": "OFF",
         "CSS223_WARNINGS_AS_ERRORS": "OFF",
         "CSS223_ENABLE_ADDRESS_SANITIZER": "OFF",
         "CSS223_ENABLE_THREAD_SANITIZER": "OFF",
@@ -43,6 +44,15 @@
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "quality",
+      "displayName": "Static Analysis",
+      "description": "Debug build with clang-tidy enabled for each C++ target",
+      "inherits": "debug",
+      "cacheVariables": {
+        "CSS223_ENABLE_CLANG_TIDY": "ON"
       }
     },
     {
@@ -73,6 +83,10 @@
     {
       "name": "release",
       "configurePreset": "release"
+    },
+    {
+      "name": "quality",
+      "configurePreset": "quality"
     },
     {
       "name": "sanitize-address",
@@ -109,6 +123,20 @@
         {
           "type": "build",
           "name": "release"
+        }
+      ]
+    },
+    {
+      "name": "workflow-quality",
+      "displayName": "Configure and build with static analysis",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "quality"
+        },
+        {
+          "type": "build",
+          "name": "quality"
         }
       ]
     },
