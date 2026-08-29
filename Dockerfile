@@ -66,6 +66,8 @@ ENTRYPOINT ["/usr/bin/tini", "--"]
 
 FROM toolchain AS development
 
+RUN chown ubuntu:ubuntu /workspace
+
 COPY --chown=ubuntu:ubuntu . /workspace
 
 ENV HOME=/home/ubuntu

@@ -1,0 +1,144 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Kitware/CMake/v3.28.3/Help/manual/presets/schema.json",
+  "version": 8,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 28,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "warnings": {
+        "dev": true,
+        "deprecated": true
+      },
+      "errors": {
+        "deprecated": true
+      },
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CSS223_WARNINGS_AS_ERRORS": "OFF",
+        "CSS223_ENABLE_ADDRESS_SANITIZER": "OFF",
+        "CSS223_ENABLE_THREAD_SANITIZER": "OFF",
+        "CSS223_ENABLE_UNDEFINED_SANITIZER": "OFF"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "description": "Debug build with compiler warnings enabled",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "description": "Optimized production build",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "sanitize-address",
+      "displayName": "Address and Undefined Behavior Sanitizers",
+      "description": "Debug build instrumented with AddressSanitizer and UndefinedBehaviorSanitizer",
+      "inherits": "debug",
+      "cacheVariables": {
+        "CSS223_ENABLE_ADDRESS_SANITIZER": "ON",
+        "CSS223_ENABLE_UNDEFINED_SANITIZER": "ON"
+      }
+    },
+    {
+      "name": "sanitize-thread",
+      "displayName": "ThreadSanitizer",
+      "description": "Debug build instrumented with ThreadSanitizer for data-race detection",
+      "inherits": "debug",
+      "cacheVariables": {
+        "CSS223_ENABLE_THREAD_SANITIZER": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "debug"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "sanitize-address",
+      "configurePreset": "sanitize-address"
+    },
+    {
+      "name": "sanitize-thread",
+      "configurePreset": "sanitize-thread"
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "workflow-debug",
+      "displayName": "Configure and build Debug",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "debug"
+        },
+        {
+          "type": "build",
+          "name": "debug"
+        }
+      ]
+    },
+    {
+      "name": "workflow-release",
+      "displayName": "Configure and build Release",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "release"
+        },
+        {
+          "type": "build",
+          "name": "release"
+        }
+      ]
+    },
+    {
+      "name": "workflow-sanitize-address",
+      "displayName": "Configure and build with address sanitizers",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "sanitize-address"
+        },
+        {
+          "type": "build",
+          "name": "sanitize-address"
+        }
+      ]
+    },
+    {
+      "name": "workflow-sanitize-thread",
+      "displayName": "Configure and build with ThreadSanitizer",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "sanitize-thread"
+        },
+        {
+          "type": "build",
+          "name": "sanitize-thread"
+        }
+      ]
+    }
+  ]
+}
