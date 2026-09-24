@@ -15,10 +15,12 @@
 
 namespace {
 
-volatile sig_atomic_t signal_count = 0;
+std::atomic<unsigned int> signal_count{0};
+static_assert(std::atomic<unsigned int>::is_always_lock_free,
+              "The signal counter must be lock-free inside the signal handler");
 
 extern "C" void handle_signal(int /*signal*/) {
-    ++signal_count;
+    signal_count.fetch_add(1, std::memory_order_relaxed);
 }
 
 void require(bool condition, const char* message) {
@@ -59,7 +61,8 @@ void test_interrupted_receive() {
     request.request_id = 42;
     const bool sent = queue.send(&request, sizeof(request));
     worker.join();
-    require(signal_result == 0 && signal_count > 0, "signal reached waiting receiver");
+    require(signal_result == 0 && signal_count.load(std::memory_order_relaxed) > 0,
+            "signal reached waiting receiver");
     require(sent && received && message.request_id == 42,
             "receive retries after interrupted system call");
 }
@@ -84,7 +87,7 @@ void test_interrupted_send() {
         sent = queue.send(&second, sizeof(second));
     });
     wait_for_worker(entered);
-    const sig_atomic_t previous_signal_count = signal_count;
+    const unsigned int previous_signal_count = signal_count.load(std::memory_order_relaxed);
     const int signal_result = ::pthread_kill(worker.native_handle(), SIGUSR1);
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
@@ -93,7 +96,8 @@ void test_interrupted_send() {
     worker.join();
     css223::ipc::RequestMessage received_second{};
     const bool received = sent && queue.receive(&received_second, sizeof(received_second));
-    require(signal_result == 0 && signal_count > previous_signal_count,
+    require(signal_result == 0 &&
+                signal_count.load(std::memory_order_relaxed) > previous_signal_count,
             "signal reached waiting sender");
     require(drained && received_first.request_id == 1 && sent && received &&
                 received_second.request_id == 2,

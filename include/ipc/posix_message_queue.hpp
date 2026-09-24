@@ -18,7 +18,6 @@ namespace css223::ipc {
 struct QueueConfig {
     long max_messages{10};
     long max_message_size{256};
-    bool non_blocking{false};
 };
 
 class PosixMessageQueue {
@@ -39,7 +38,7 @@ public:
                                             const QueueConfig& config = QueueConfig{});
 
     static PosixMessageQueue open_read_only(std::string_view name);
-    static PosixMessageQueue open_write_only(std::string_view name, bool non_blocking = false);
+    static PosixMessageQueue open_write_only(std::string_view name);
 
     [[nodiscard]] bool is_open() const noexcept;
     // Returns false with errno set on failure. Failed cleanup can be retried,

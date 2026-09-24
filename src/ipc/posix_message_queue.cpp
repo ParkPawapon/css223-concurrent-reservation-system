@@ -73,13 +73,11 @@ PosixMessageQueue PosixMessageQueue::open_or_create(std::string_view name,
     attr.mq_maxmsg = config.max_messages;
     attr.mq_msgsize = config.max_message_size;
     constexpr mode_t kQueuePermissions = 0660;
-    const int access_flags = O_RDWR | (config.non_blocking ? O_NONBLOCK : 0);
-    mqd_t mqd =
-        ::mq_open(name_str.c_str(), access_flags | O_CREAT | O_EXCL, kQueuePermissions, &attr);
+    mqd_t mqd = ::mq_open(name_str.c_str(), O_RDWR | O_CREAT | O_EXCL, kQueuePermissions, &attr);
     bool owns_queue = mqd != kInvalidMqd;
 
     if (mqd == kInvalidMqd && errno == EEXIST) {
-        mqd = ::mq_open(name_str.c_str(), access_flags);
+        mqd = ::mq_open(name_str.c_str(), O_RDWR);
         if (mqd != kInvalidMqd) {
             struct mq_attr existing_attr {};
             if (::mq_getattr(mqd, &existing_attr) == -1 ||
@@ -115,17 +113,16 @@ PosixMessageQueue PosixMessageQueue::open_read_only(std::string_view name) {
 #endif
 }
 
-PosixMessageQueue PosixMessageQueue::open_write_only(std::string_view name, bool non_blocking) {
+PosixMessageQueue PosixMessageQueue::open_write_only(std::string_view name) {
     std::string name_str(name);
     if (!is_valid_posix_queue_name(name)) {
         return PosixMessageQueue(kInvalidMqd, std::move(name_str));
     }
 
 #if defined(__linux__) || defined(__unix__)
-    mqd_t mqd = ::mq_open(name_str.c_str(), O_WRONLY | (non_blocking ? O_NONBLOCK : 0));
+    mqd_t mqd = ::mq_open(name_str.c_str(), O_WRONLY);
     return PosixMessageQueue(mqd, name_str);
 #else
-    (void) non_blocking;
     return PosixMessageQueue(kInvalidMqd, name_str);
 #endif
 }

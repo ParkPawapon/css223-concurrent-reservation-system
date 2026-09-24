@@ -185,6 +185,22 @@ void test_destructor_and_stale_queue_cleanup() {
             "stale queue absent after unlink");
 }
 
+void test_embedded_null_cannot_unlink_another_queue() {
+    const std::string name = test_queue_name("nul_victim");
+    auto owner = PosixMessageQueue::open_or_create(name);
+    require(owner.is_open(), "create queue protected from embedded NUL aliasing");
+
+    std::string malicious_name = name;
+    malicious_name.push_back('\0');
+    malicious_name += "suffix";
+    require(
+        !PosixMessageQueue::unlink(std::string_view(malicious_name.data(), malicious_name.size())),
+        "reject queue name containing embedded NUL");
+    require(PosixMessageQueue::open_read_only(name).is_open(),
+            "embedded NUL unlink attempt preserves original queue");
+    require(owner.close(), "clean up protected queue");
+}
+
 } // namespace
 
 int main() {
@@ -198,6 +214,7 @@ int main() {
         test_request_response_between_processes();
         test_ownership_and_message_sizes();
         test_destructor_and_stale_queue_cleanup();
+        test_embedded_null_cannot_unlink_another_queue();
     } catch (const std::exception& error) {
         std::cerr << "IPC queue integration test failed: " << error.what() << '\n';
         return EXIT_FAILURE;
