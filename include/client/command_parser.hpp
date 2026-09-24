@@ -12,6 +12,8 @@ namespace css223::client {
 struct ParsedCommand {
     common::CommandType type{common::CommandType::Unknown};
     std::string seat_id;
+    bool is_help{false};
+    bool is_clear{false};
 };
 
 class CommandParser {
