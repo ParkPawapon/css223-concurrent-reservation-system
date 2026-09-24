@@ -34,6 +34,8 @@ include(ProjectOptions)
 
 css223_setup_project_options()
 
+add_subdirectory(src)
+
 if(BUILD_TESTING)
     include(Testing)
     add_subdirectory(tests)
