@@ -60,7 +60,10 @@ css223_apply_project_options(reservation_server_lib)
 # Client orchestration library
 add_library(reservation_client_lib STATIC
     client/command_parser.cpp
+    client/seat_map_formatter.cpp
+    client/terminal_ui.cpp
     client/client.cpp
+    client/client_repl.cpp
 )
 target_link_libraries(reservation_client_lib PUBLIC
     reservation_common

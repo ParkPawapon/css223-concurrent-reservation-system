@@ -4,7 +4,9 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
+#include "client/seat_map_formatter.hpp"
 #include "common/command.hpp"
 #include "common/types.hpp"
 #include "ipc/message.hpp"
@@ -32,6 +34,14 @@ public:
 
     bool send_request(common::CommandType command, std::string_view seat_id = {});
     [[nodiscard]] std::optional<ipc::ResponseMessage> receive_response();
+
+    [[nodiscard]] std::optional<ipc::ResponseMessage> request_status(std::string_view seat_id);
+    [[nodiscard]] std::optional<ipc::ResponseMessage> request_reserve(std::string_view seat_id);
+    [[nodiscard]] std::optional<ipc::ResponseMessage> request_cancel(std::string_view seat_id);
+    [[nodiscard]] std::optional<ipc::ResponseMessage> request_list();
+    [[nodiscard]] std::optional<ipc::ResponseMessage> request_quit();
+
+    [[nodiscard]] std::vector<SeatDisplayInfo> fetch_seat_map();
 
 private:
     common::ClientId client_id_;

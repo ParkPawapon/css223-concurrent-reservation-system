@@ -7,3 +7,11 @@ css223_add_test(
     SOURCES ipc_message_smoke_test.cpp
     LINK_LIBRARIES reservation_ipc
 )
+
+css223_add_test(
+    NAME client_integration_test
+    TYPE integration
+    SOURCES client_integration_test.cpp
+    LINK_LIBRARIES reservation_client_lib
+)
+

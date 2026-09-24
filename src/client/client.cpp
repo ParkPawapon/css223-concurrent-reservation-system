@@ -5,7 +5,9 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
+#include "client/seat_map_formatter.hpp"
 #include "common/constants.hpp"
 #include "ipc/message.hpp"
 #include "ipc/queue_names.hpp"
@@ -84,6 +86,66 @@ std::optional<ipc::ResponseMessage> Client::receive_response() {
     }
 
     return response;
+}
+
+std::optional<ipc::ResponseMessage> Client::request_status(std::string_view seat_id) {
+    if (!send_request(common::CommandType::Status, seat_id)) {
+        return std::nullopt;
+    }
+    return receive_response();
+}
+
+std::optional<ipc::ResponseMessage> Client::request_reserve(std::string_view seat_id) {
+    if (!send_request(common::CommandType::Reserve, seat_id)) {
+        return std::nullopt;
+    }
+    return receive_response();
+}
+
+std::optional<ipc::ResponseMessage> Client::request_cancel(std::string_view seat_id) {
+    if (!send_request(common::CommandType::Cancel, seat_id)) {
+        return std::nullopt;
+    }
+    return receive_response();
+}
+
+std::optional<ipc::ResponseMessage> Client::request_list() {
+    if (!send_request(common::CommandType::List)) {
+        return std::nullopt;
+    }
+    return receive_response();
+}
+
+std::optional<ipc::ResponseMessage> Client::request_quit() {
+    if (!send_request(common::CommandType::Quit)) {
+        return std::nullopt;
+    }
+    return receive_response();
+}
+
+std::vector<SeatDisplayInfo> Client::fetch_seat_map() {
+    std::vector<SeatDisplayInfo> seat_map;
+    seat_map.reserve(common::kCanonicalSeatIds.size());
+
+    // Signal server that a list inquiry is underway
+    static_cast<void>(request_list());
+
+    for (const auto& seat_id : common::kCanonicalSeatIds) {
+        SeatDisplayInfo info{};
+        info.seat_id = std::string(seat_id);
+
+        auto response = request_status(seat_id);
+        if (response.has_value() && response->result == common::StatusCode::Success) {
+            info.status = response->status;
+            info.owner_client_id = response->owner_client_id;
+        } else {
+            info.status = core::SeatStatus::Available;
+            info.owner_client_id = common::kInvalidClientId;
+        }
+        seat_map.push_back(std::move(info));
+    }
+
+    return seat_map;
 }
 
 } // namespace css223::client
