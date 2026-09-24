@@ -2,6 +2,7 @@
 
 #include <cerrno>
 #include <cstddef>
+#include <cstring>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -47,7 +48,8 @@ PosixMessageQueue PosixMessageQueue::open_or_create(std::string_view name,
     std::string name_str(name);
 
 #if defined(__linux__) || defined(__unix__)
-    struct mq_attr attr{};
+    struct mq_attr attr;
+    std::memset(&attr, 0, sizeof(attr));
     attr.mq_flags = 0;
     attr.mq_maxmsg = config.max_messages;
     attr.mq_msgsize = config.max_message_size;
