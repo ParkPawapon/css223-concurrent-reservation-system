@@ -4,7 +4,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
-#include <system_error>
+#include <type_traits>
 #include <unistd.h>
 #include <utility>
 
@@ -72,26 +72,23 @@ void test_interrupted_and_repeated_unlink() {
     require(queue.close(), "owner close succeeds after explicit unlink");
 }
 
-void test_move_does_not_lose_pending_cleanup() {
+void test_move_assignment_is_noexcept() {
+    static_assert(std::is_nothrow_move_assignable_v<css223::ipc::PosixMessageQueue>,
+                  "POSIX message queue move assignment must be noexcept");
+
     const auto source_name = queue_name("source");
     const auto destination_name = queue_name("destination");
     auto source = css223::ipc::PosixMessageQueue::open_or_create(source_name);
     auto destination = css223::ipc::PosixMessageQueue::open_or_create(destination_name);
     require(source.is_open() && destination.is_open(), "create queues for move assignment");
     fail_next_unlink(EACCES);
-    bool rejected = false;
-    try {
-        destination = std::move(source);
-    } catch (const std::system_error& error) {
-        rejected = error.code().value() == EACCES;
-    }
-    require(rejected, "move reports failed cleanup instead of discarding ownership");
-    require(source.is_open() && destination.name() == destination_name,
-            "failed move preserves source and destination cleanup state");
-    require(destination.close(), "retry destination cleanup");
-    require(!queue_exists(destination_name), "old destination removed");
     destination = std::move(source);
-    require(destination.is_open() && !source.is_open(), "move succeeds after cleanup");
+    require(destination.is_open() && !source.is_open() && destination.name() == source_name,
+            "move transfers descriptor and ownership without throwing");
+    require(queue_exists(destination_name), "injected failure leaves old queue for explicit retry");
+    require(css223::ipc::PosixMessageQueue::unlink(destination_name),
+            "retry cleanup of the old destination queue");
+    require(!queue_exists(destination_name), "old destination removed after retry");
     require(destination.close() && !queue_exists(source_name), "moved ownership cleans up");
 }
 
@@ -114,7 +111,7 @@ int main() {
         test_close_retry();
         test_destructor_retry();
         test_interrupted_and_repeated_unlink();
-        test_move_does_not_lose_pending_cleanup();
+        test_move_assignment_is_noexcept();
     } catch (const std::exception& error) {
         std::cerr << "IPC cleanup test failed: " << error.what() << '\n';
         return EXIT_FAILURE;

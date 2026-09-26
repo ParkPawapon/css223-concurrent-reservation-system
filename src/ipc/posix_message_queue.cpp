@@ -7,7 +7,6 @@
 #include <cstring>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <utility>
 
 #include "common/constants.hpp"
@@ -32,9 +31,9 @@ PosixMessageQueue::PosixMessageQueue(mqd_t descriptor, std::string name, bool ow
 
 PosixMessageQueue::~PosixMessageQueue() {
     if (!close()) {
-        const int error = errno;
+        const int kError = errno;
         std::fprintf(
-            stderr, "[IPC] Failed to close/unlink queue %s (errno=%d)\n", name_.c_str(), error);
+            stderr, "[IPC] Failed to close/unlink queue %s (errno=%d)\n", name_.c_str(), kError);
     }
 }
 
@@ -45,10 +44,15 @@ PosixMessageQueue::PosixMessageQueue(PosixMessageQueue&& other) noexcept
     other.owns_queue_ = false;
 }
 
-PosixMessageQueue& PosixMessageQueue::operator=(PosixMessageQueue&& other) {
+PosixMessageQueue& PosixMessageQueue::operator=(PosixMessageQueue&& other) noexcept {
     if (this != &other) {
         if (!close()) {
-            throw std::system_error(errno, std::generic_category(), "queue cleanup before move");
+            const int kError = errno;
+            std::fprintf(stderr,
+                         "[IPC] Failed to close/unlink queue %s before move assignment "
+                         "(errno=%d)\n",
+                         name_.c_str(),
+                         kError);
         }
         descriptor_ = other.descriptor_;
         name_ = std::move(other.name_);

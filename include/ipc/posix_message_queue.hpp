@@ -29,8 +29,7 @@ public:
     PosixMessageQueue& operator=(const PosixMessageQueue&) = delete;
 
     PosixMessageQueue(PosixMessageQueue&& other) noexcept;
-    // Throws std::system_error if cleanup of the previous queue fails.
-    PosixMessageQueue& operator=(PosixMessageQueue&& other);
+    PosixMessageQueue& operator=(PosixMessageQueue&& other) noexcept;
 
     // The instance that creates a new queue owns its name and unlinks it on close.
     // Opening an existing queue or a read/write-only handle never takes ownership.
