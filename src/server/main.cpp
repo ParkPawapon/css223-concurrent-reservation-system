@@ -59,8 +59,10 @@ int main(int argc, char* argv[]) {
               << "   CSS223 Cinema Reservation Server Starting                  \n"
               << "==============================================================\n"
               << "  Workers         : " << config.worker_count << "\n"
-              << "  Synchronization : " << (config.synchronization_enabled ? "ENABLED" : "DISABLED (--no-sync)") << "\n"
-              << "  Random Delay    : " << (config.random_delay_enabled ? "ENABLED (50-500 ms)" : "DISABLED") << "\n"
+              << "  Synchronization : "
+              << (config.synchronization_enabled ? "ENABLED" : "DISABLED (--no-sync)") << "\n"
+              << "  Random Delay    : "
+              << (config.random_delay_enabled ? "ENABLED (50-500 ms)" : "DISABLED") << "\n"
               << "  Request Queue   : " << config.request_queue_name << "\n"
               << "==============================================================\n";
 
@@ -82,4 +84,3 @@ int main(int argc, char* argv[]) {
 
     return EXIT_SUCCESS;
 }
-
