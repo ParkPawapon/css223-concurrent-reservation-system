@@ -39,9 +39,10 @@ std::vector<Seat> ReservationTable::get_all_seats() const {
 
 bool ReservationTable::reserve_seat(std::string_view seat_id,
                                     common::ClientId client_id,
-                                    const DelayAction& delay_action) {
+                                    const DelayAction& delay_action,
+                                    bool allow_overwrite) {
     Seat* seat = find_seat_internal(seat_id);
-    if (seat == nullptr || !seat->is_available()) {
+    if (seat == nullptr || (!allow_overwrite && !seat->is_available())) {
         return false;
     }
 
@@ -49,7 +50,7 @@ bool ReservationTable::reserve_seat(std::string_view seat_id,
         delay_action();
     }
 
-    return seat->reserve(client_id);
+    return seat->reserve(client_id, allow_overwrite);
 }
 
 bool ReservationTable::cancel_seat(std::string_view seat_id,

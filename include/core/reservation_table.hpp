@@ -25,7 +25,8 @@ public:
 
     bool reserve_seat(std::string_view seat_id,
                       common::ClientId client_id,
-                      const DelayAction& delay_action = nullptr);
+                      const DelayAction& delay_action = nullptr,
+                      bool allow_overwrite = false);
 
     bool cancel_seat(std::string_view seat_id,
                      common::ClientId client_id,

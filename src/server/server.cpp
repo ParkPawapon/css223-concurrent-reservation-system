@@ -39,7 +39,7 @@ bool Server::start() {
 
     running_.store(true);
 
-    worker_pool_.start([this](std::size_t /*worker_id*/) {
+    worker_pool_.start([this](std::size_t worker_id) {
         while (running_.load()) {
             ipc::RequestMessage request{};
             if (!request_queue_.receive(&request, sizeof(request))) {
@@ -50,11 +50,13 @@ bool Server::start() {
                 continue;
             }
 
-            if (!running_.load() || request.command == common::CommandType::Quit) {
+            // Sentinel shutdown signal sent by Server::stop()
+            if (!running_.load() || (request.command == common::CommandType::Quit &&
+                                     request.client_id == common::kInvalidClientId)) {
                 break;
             }
 
-            ipc::ResponseMessage response = processor_.process_request(request);
+            ipc::ResponseMessage response = processor_.process_request(request, worker_id);
 
             std::string_view reply_queue_name = ipc::buffer_to_string_view(
                 request.reply_queue_name, sizeof(request.reply_queue_name));
@@ -81,6 +83,7 @@ void Server::stop() noexcept {
     // Unblock worker threads waiting on blocking mq_receive()
     if (request_queue_.is_open()) {
         ipc::RequestMessage quit_request{};
+        quit_request.client_id = common::kInvalidClientId;
         quit_request.command = common::CommandType::Quit;
         for (std::size_t i = 0; i < config_.worker_count; ++i) {
             request_queue_.send(&quit_request, sizeof(quit_request));

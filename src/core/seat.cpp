@@ -6,8 +6,11 @@ namespace css223::core {
 
 Seat::Seat(std::string seat_id) : id_(std::move(seat_id)) {}
 
-bool Seat::reserve(common::ClientId client_id) {
-    if (status_ == SeatStatus::Reserved || client_id == common::kInvalidClientId) {
+bool Seat::reserve(common::ClientId client_id, bool allow_overwrite) {
+    if (client_id == common::kInvalidClientId) {
+        return false;
+    }
+    if (!allow_overwrite && status_ == SeatStatus::Reserved) {
         return false;
     }
     status_ = SeatStatus::Reserved;

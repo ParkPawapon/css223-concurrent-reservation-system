@@ -15,6 +15,9 @@ public:
     void execute_delay() const;
     static void execute_delay(unsigned int min_ms, unsigned int max_ms);
 
+    [[nodiscard]] unsigned int generate_delay_duration() const;
+    static unsigned int generate_delay_duration(unsigned int min_ms, unsigned int max_ms);
+
     [[nodiscard]] unsigned int min_delay_ms() const noexcept { return min_ms_; }
     [[nodiscard]] unsigned int max_delay_ms() const noexcept { return max_ms_; }
 

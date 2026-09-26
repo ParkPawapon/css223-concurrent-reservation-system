@@ -16,13 +16,17 @@ public:
                      std::mutex& reservation_mutex,
                      const ServerConfig& config) noexcept;
 
-    [[nodiscard]] ipc::ResponseMessage process_request(const ipc::RequestMessage& request);
+    [[nodiscard]] ipc::ResponseMessage process_request(const ipc::RequestMessage& request,
+                                                       std::size_t worker_id = 0);
 
 private:
+    void log(std::size_t worker_id, std::string_view message) const;
+
     core::ReservationTable& table_;
     std::mutex& reservation_mutex_;
     const ServerConfig& config_;
     concurrency::RandomDelayGenerator delay_generator_;
+    mutable std::mutex log_mutex_;
 };
 
 } // namespace css223::server

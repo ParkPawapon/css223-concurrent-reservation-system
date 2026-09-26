@@ -36,7 +36,7 @@ public:
     [[nodiscard]] bool is_available() const noexcept { return status_ == SeatStatus::Available; }
     [[nodiscard]] bool is_reserved() const noexcept { return status_ == SeatStatus::Reserved; }
 
-    bool reserve(common::ClientId client_id);
+    bool reserve(common::ClientId client_id, bool allow_overwrite = false);
     bool cancel(common::ClientId client_id);
     void reset() noexcept;
 
