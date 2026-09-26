@@ -36,6 +36,9 @@ static_assert(std::is_trivially_copyable_v<RequestMessage>,
               "RequestMessage must be trivially copyable for raw POSIX MQ transfer");
 static_assert(std::is_trivially_copyable_v<ResponseMessage>,
               "ResponseMessage must be trivially copyable for raw POSIX MQ transfer");
+static_assert(std::is_standard_layout_v<RequestMessage> &&
+                  std::is_standard_layout_v<ResponseMessage>,
+              "POSIX MQ messages must have a stable raw layout");
 
 void copy_string_to_buffer(char* dest, std::size_t dest_size, std::string_view src) noexcept;
 

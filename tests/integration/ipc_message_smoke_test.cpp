@@ -28,6 +28,9 @@ int main() {
     assert(css223::ipc::is_valid_posix_queue_name(css223::common::kDefaultServerQueueName));
     assert(!css223::ipc::is_valid_posix_queue_name("invalid_no_slash"));
     assert(!css223::ipc::is_valid_posix_queue_name("/nested/slash"));
+    constexpr char kEmbeddedNullName[] = "/victim\0suffix";
+    assert(!css223::ipc::is_valid_posix_queue_name(
+        std::string_view(kEmbeddedNullName, sizeof(kEmbeddedNullName) - 1)));
 
     return EXIT_SUCCESS;
 }
