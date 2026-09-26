@@ -1,3 +1,4 @@
+#include <csignal>
 #include <cstddef>
 #include <cstdlib>
 #include <iostream>
@@ -7,6 +8,17 @@
 #include "server/server_config.hpp"
 
 namespace {
+
+css223::server::Server* g_active_server = nullptr;
+
+void signal_handler(int signal) {
+    if (g_active_server != nullptr) {
+        std::cout << "\n[Server] Signal " << signal
+                  << " (SIGINT / Ctrl+C) received. Initiating graceful shutdown...\n";
+        g_active_server->stop();
+        g_active_server = nullptr;
+    }
+}
 
 void print_usage(std::string_view program_name) {
     std::cout << "Usage: " << program_name << " [options]\n"
@@ -40,18 +52,34 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::cout << "[Server] Initializing reservation server\n"
-              << "  Workers: " << config.worker_count << "\n"
-              << "  Synchronization: " << (config.synchronization_enabled ? "ENABLED" : "DISABLED")
-              << "\n"
-              << "  Random Delay: " << (config.random_delay_enabled ? "ENABLED" : "DISABLED")
-              << "\n"
-              << "  Queue: " << config.request_queue_name << "\n";
+    std::signal(SIGINT, signal_handler);
+    std::signal(SIGTERM, signal_handler);
+
+    std::cout << "==============================================================\n"
+              << "   CSS223 Cinema Reservation Server Starting                  \n"
+              << "==============================================================\n"
+              << "  Workers         : " << config.worker_count << "\n"
+              << "  Synchronization : " << (config.synchronization_enabled ? "ENABLED" : "DISABLED (--no-sync)") << "\n"
+              << "  Random Delay    : " << (config.random_delay_enabled ? "ENABLED (50-500 ms)" : "DISABLED") << "\n"
+              << "  Request Queue   : " << config.request_queue_name << "\n"
+              << "==============================================================\n";
 
     css223::server::Server server(config);
+    g_active_server = &server;
 
-    // Baseline structural verification: confirm startup capability
-    std::cout << "[Server] Foundation initialized successfully.\n";
+    if (!server.start()) {
+        std::cerr << "[Server] FATAL: Failed to start server and initialize request queue.\n";
+        g_active_server = nullptr;
+        return EXIT_FAILURE;
+    }
+
+    std::cout << "[Server] Ready and waiting for client requests. Press Ctrl+C to terminate.\n";
+
+    server.run();
+
+    g_active_server = nullptr;
+    std::cout << "[Server] Shutdown complete. Resources unlinked cleanly.\n";
 
     return EXIT_SUCCESS;
 }
+

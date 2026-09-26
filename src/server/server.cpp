@@ -50,6 +50,10 @@ bool Server::start() {
                 continue;
             }
 
+            if (!running_.load() || request.command == common::CommandType::Quit) {
+                break;
+            }
+
             ipc::ResponseMessage response = processor_.process_request(request);
 
             std::string_view reply_queue_name = ipc::buffer_to_string_view(
@@ -73,6 +77,16 @@ void Server::stop() noexcept {
     }
 
     running_.store(false);
+
+    // Unblock worker threads waiting on blocking mq_receive()
+    if (request_queue_.is_open()) {
+        ipc::RequestMessage quit_request{};
+        quit_request.command = common::CommandType::Quit;
+        for (std::size_t i = 0; i < config_.worker_count; ++i) {
+            request_queue_.send(&quit_request, sizeof(quit_request));
+        }
+    }
+
     worker_pool_.stop();
     request_queue_.close();
     ipc::PosixMessageQueue::unlink(config_.request_queue_name);
