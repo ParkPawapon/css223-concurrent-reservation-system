@@ -4,20 +4,23 @@
 #include <iostream>
 #include <string_view>
 
+#if defined(__linux__) || defined(__unix__)
+    #include <unistd.h>
+#endif
+
 #include "server/server.hpp"
 #include "server/server_config.hpp"
 
 namespace {
 
-css223::server::Server* g_active_server = nullptr;
-
 void signal_handler(int signal) {
-    if (g_active_server != nullptr) {
-        std::cout << "\n[Server] Signal " << signal
-                  << " (SIGINT / Ctrl+C) received. Initiating graceful shutdown...\n";
-        g_active_server->stop();
-        g_active_server = nullptr;
-    }
+    (void) signal;
+#if defined(__linux__) || defined(__unix__)
+    constexpr const char kShutdownMsg[] =
+        "\n[Server] Signal received. Initiating graceful shutdown...\n";
+    (void) ::write(STDOUT_FILENO, kShutdownMsg, sizeof(kShutdownMsg) - 1);
+#endif
+    css223::server::Server::request_shutdown();
 }
 
 void print_usage(std::string_view program_name) {
@@ -67,11 +70,9 @@ int main(int argc, char* argv[]) {
               << "==============================================================\n";
 
     css223::server::Server server(config);
-    g_active_server = &server;
 
     if (!server.start()) {
         std::cerr << "[Server] FATAL: Failed to start server and initialize request queue.\n";
-        g_active_server = nullptr;
         return EXIT_FAILURE;
     }
 
@@ -79,7 +80,6 @@ int main(int argc, char* argv[]) {
 
     server.run();
 
-    g_active_server = nullptr;
     std::cout << "[Server] Shutdown complete. Resources unlinked cleanly.\n";
 
     return EXIT_SUCCESS;

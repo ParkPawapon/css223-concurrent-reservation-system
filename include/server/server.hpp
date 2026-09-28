@@ -28,6 +28,10 @@ public:
     void stop() noexcept;
     void run();
 
+    static void request_shutdown() noexcept;
+    [[nodiscard]] static bool is_shutdown_requested() noexcept;
+    static void reset_shutdown_request() noexcept;
+
     [[nodiscard]] bool is_running() const noexcept { return running_.load(); }
     [[nodiscard]] const ServerConfig& config() const noexcept { return config_; }
     [[nodiscard]] const core::ReservationTable& table() const noexcept { return table_; }
