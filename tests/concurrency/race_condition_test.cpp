@@ -19,6 +19,14 @@
 #include "server/server_config.hpp"
 #include "server/worker_pool.hpp"
 
+#if defined(__SANITIZE_THREAD__)
+#define CSS223_RUNNING_UNDER_TSAN 1
+#elif defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#define CSS223_RUNNING_UNDER_TSAN 1
+#endif
+#endif
+
 namespace {
 
 void test_synchronized_competing_reservations() {
@@ -97,6 +105,10 @@ void test_unsynchronized_competing_reservations() {
     std::cout << "[Test 2] Running Unsynchronized Competing Reservations Test (Mutex DISABLED / "
                  "Race Condition)...\n";
 
+#if defined(CSS223_RUNNING_UNDER_TSAN)
+    std::cout << "  -> SKIPPED under ThreadSanitizer: Intentionally unsynchronized by design "
+                 "to demonstrate Race Conditions (TSan halts on expected data races).\n";
+#else
     css223::core::ReservationTable table;
     std::mutex dummy_mutex;
 
@@ -154,6 +166,7 @@ void test_unsynchronized_competing_reservations() {
 
     std::cout << "  -> PASSED: Unsynchronized requests processed with conflict logging. Successes: "
               << success_count.load() << ", Failures/Conflicts: " << failure_count.load() << "\n";
+#endif
 }
 
 void test_concurrent_distinct_seat_reservations() {
