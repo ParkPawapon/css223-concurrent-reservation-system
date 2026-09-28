@@ -20,11 +20,11 @@
 #include "server/worker_pool.hpp"
 
 #if defined(__SANITIZE_THREAD__)
-#define CSS223_RUNNING_UNDER_TSAN 1
+    #define CSS223_RUNNING_UNDER_TSAN 1
 #elif defined(__has_feature)
-#if __has_feature(thread_sanitizer)
-#define CSS223_RUNNING_UNDER_TSAN 1
-#endif
+    #if __has_feature(thread_sanitizer)
+        #define CSS223_RUNNING_UNDER_TSAN 1
+    #endif
 #endif
 
 namespace {
