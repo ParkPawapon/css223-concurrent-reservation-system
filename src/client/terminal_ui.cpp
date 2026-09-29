@@ -44,7 +44,7 @@ int TerminalUi::get_terminal_width() noexcept {
     }
 
 #if defined(__linux__) || defined(__unix__)
-    struct winsize window_size{};
+    struct winsize window_size {};
     if (::ioctl(STDOUT_FILENO, TIOCGWINSZ, &window_size) == 0 && window_size.ws_col >= 40) {
         return static_cast<int>(window_size.ws_col);
     }
@@ -472,10 +472,9 @@ std::string TerminalUi::format_grid(const std::vector<SeatDisplayInfo>& seats,
                "────╮\n"
             << "│  " << colors::kReset << colors::kBold << "LEGEND:  " << colors::kReset
             << colors::kDim << "[" << colors::kReset << colors::kBrightGreen << " A1 • FREE "
-            << colors::kDim << "] Available   "
-            << "[" << colors::kReset << colors::kBold << colors::kBrightYellow << " A1 ★ (ME) "
-            << colors::kDim << "] Your Seat   "
-            << "[" << colors::kReset << colors::kBrightRed << " A1 🔒C#02 " << colors::kDim
+            << colors::kDim << "] Available   " << "[" << colors::kReset << colors::kBold
+            << colors::kBrightYellow << " A1 ★ (ME) " << colors::kDim << "] Your Seat   " << "["
+            << colors::kReset << colors::kBrightRed << " A1 🔒C#02 " << colors::kDim
             << "] Booked   " << "│\n"
             << "╰──────────────────────────────────────────────────────────────────────────────────"
                "────╯\n"

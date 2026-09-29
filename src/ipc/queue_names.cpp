@@ -19,7 +19,12 @@ bool is_valid_posix_queue_name(std::string_view queue_name) noexcept {
     if (queue_name.size() >= common::kMaxQueueNameLength) {
         return false;
     }
-    // POSIX message queue names cannot contain subsequent slashes
+    // POSIX APIs consume a C string. Reject embedded NUL bytes so validation
+    // and the kernel always operate on the same queue name.
+    if (queue_name.find('\0') != std::string_view::npos) {
+        return false;
+    }
+    // POSIX message queue names cannot contain subsequent slashes.
     if (queue_name.find('/', 1) != std::string_view::npos) {
         return false;
     }
