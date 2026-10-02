@@ -77,9 +77,7 @@ int main() {
     assert(!reserve_table.reserve_seat("A6", 101));
 
     // Invalid client ID (0) cannot reserve a seat
-    assert(!reserve_table.reserve_seat(
-        "A2", css223::common::kInvalidClientId
-    ));
+    assert(!reserve_table.reserve_seat("A2", css223::common::kInvalidClientId));
 
     // 9. Verify ReservationTable cancel behavior
 
@@ -110,9 +108,7 @@ int main() {
 
     bool delay_called = false;
 
-    auto delay_action = [&delay_called]() {
-        delay_called = true;
-    };
+    auto delay_action = [&delay_called]() { delay_called = true; };
 
     assert(delay_table.reserve_seat("B1", 201, delay_action));
     assert(delay_called);
@@ -124,9 +120,7 @@ int main() {
     // Verify delay is not called when reservation fails
     bool failed_delay_called = false;
 
-    auto failed_delay_action = [&failed_delay_called]() {
-        failed_delay_called = true;
-    };
+    auto failed_delay_action = [&failed_delay_called]() { failed_delay_called = true; };
 
     // B1 is already reserved by client 201
     assert(!delay_table.reserve_seat("B1", 202, failed_delay_action));
@@ -167,5 +161,4 @@ int main() {
     assert(css223::common::parse_command_type("QUIT") == css223::common::CommandType::Quit);
 
     return EXIT_SUCCESS;
-    
 }
