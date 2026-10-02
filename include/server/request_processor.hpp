@@ -16,7 +16,8 @@ public:
                      std::mutex& reservation_mutex,
                      const ServerConfig& config) noexcept;
 
-    [[nodiscard]] ipc::ResponseMessage process_request(const ipc::RequestMessage& request);
+    [[nodiscard]] ipc::ResponseMessage process_request(const ipc::RequestMessage& request,
+                                                       std::size_t worker_id = 0);
 
 private:
     core::ReservationTable& table_;
