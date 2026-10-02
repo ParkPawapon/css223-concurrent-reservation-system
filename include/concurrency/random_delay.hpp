@@ -12,8 +12,8 @@ public:
     explicit RandomDelayGenerator(unsigned int min_ms = common::kDefaultMinDelayMs,
                                   unsigned int max_ms = common::kDefaultMaxDelayMs) noexcept;
 
-    void execute_delay() const;
-    static void execute_delay(unsigned int min_ms, unsigned int max_ms);
+    [[nodiscard]] unsigned int execute_delay() const;
+    [[nodiscard]] static unsigned int execute_delay(unsigned int min_ms, unsigned int max_ms);
 
     [[nodiscard]] unsigned int min_delay_ms() const noexcept { return min_ms_; }
     [[nodiscard]] unsigned int max_delay_ms() const noexcept { return max_ms_; }
