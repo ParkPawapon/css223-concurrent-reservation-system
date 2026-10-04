@@ -1,0 +1,46 @@
+
+                     *  *  *   N O W   S H O W I N G   *  *  *
+       .========================================================================.
+       |   //    //    //    //    //    //    //    //    //    //    //    //  |
+       |___//____//____//____//____//____//____//____//____//____//____//____//__|
+       +========================================================================+
+       |  🎬  * C L A P ! *               |  SCENE: 01       |  TAKE: 01 ACTION |
+       |  TITLE: CSS223 CONCURRENT CINEMA |  DATE : 2026     |  FPS : 24 RAW    |
+       |  SYNC : MUTEX (EXP 1, 2, 3)      |  IPC  : POSIX MQ |  OS  : LINUX C17 |
+       +========================================================================+
+
+               ★  ★  ★   NOW SHOWING   ★  ★  ★
+               WELCOME TO CSS223 CINEMA THEATER
+       Multi-Threaded Server & Concurrent Client System
+
+  +------------------------------------------------------------------+
+  | Box Office Counter • Select an option to proceed:                |
+  |                                                                  |
+  | > LIST              View all 20 cinema seats & current status    |
+  |   STATUS <seat_id>  Check seat status (e.g. STATUS A1)           |
+  |   RESERVE <seat_id> Book your cinema seat (e.g. RESERVE A1)      |
+  |   CANCEL <seat_id>  Cancel reservation (e.g. CANCEL A1)          |
+  |   QUIT              Leave cinema & disconnect session            |
+  |   HELP              Show box office instructions                 |
+  |   CLEAR / CLS       Refresh & re-center Cinema Theater screen    |
+  |                                                                  |
+  | Tip: Type a command below and press Enter to begin!              |
+  +------------------------------------------------------------------+
+Connected to Box Office as Client ID: 99
+
+Client[99]> 
+  +------------------------------------------------------------------+
+  |                  ======== CINEMA SCREEN ========                 |
+  +------------------------------------------------------------------+
+
+  Row A:  [A1: RSV (C#1)] [A2: AVAIL    ] [A3: AVAIL    ] [A4: AVAIL    ] [A5: AVAIL    ]
+  Row B:  [B1: AVAIL    ] [B2: AVAIL    ] [B3: AVAIL    ] [B4: AVAIL    ] [B5: AVAIL    ]
+  Row C:  [C1: AVAIL    ] [C2: AVAIL    ] [C3: AVAIL    ] [C4: AVAIL    ] [C5: AVAIL    ]
+  Row D:  [D1: AVAIL    ] [D2: AVAIL    ] [D3: AVAIL    ] [D4: AVAIL    ] [D5: AVAIL    ]
+
+  --------------------------------------------------------------------
+  Box Office: Total = 20 | Available = 19 | Reserved = 1
+  THEATER CAPACITY : [██░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]  5.0%  (1/20 Booked)
+  --------------------------------------------------------------------
+
+Client[99]>   [INFO] Leaving Cinema Theater. Reply queue unlinked. See you next show!

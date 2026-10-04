@@ -1,0 +1,59 @@
+
+[Server] Signal received. Initiating graceful shutdown...
+==============================================================
+   CSS223 Cinema Reservation Server Starting                  
+==============================================================
+  Workers         : 5
+  Synchronization : DISABLED (--no-sync)
+  Random Delay    : ENABLED (50-500 ms)
+  Request Queue   : /css223_reservation_requests
+==============================================================
+[Server] Ready and waiting for client requests. Press Ctrl+C to terminate.
+[Worker 1] [CHECK] Seat A1 is AVAILABLE for Client 3
+[Worker 2] [CHECK] Seat A1 is AVAILABLE for Client 1
+[Worker 3] [CHECK] Seat A1 is AVAILABLE for Client 2
+[Worker 0] [CHECK] Seat A1 is AVAILABLE for Client 5
+[Worker 4] [CHECK] Seat A1 is AVAILABLE for Client 4
+[Worker 2] [DELAY] Simulating random delay: 160 ms for Seat A1
+[Worker 2] [UPDATE] Seat A1 SUCCESS: Reserved by Client 1
+[Worker 2] [QUIT] Client 1 session ended
+[Worker 3] [DELAY] Simulating random delay: 187 ms for Seat A1
+[Worker 3] [UPDATE] CONFLICT / DOUBLE BOOKING: Seat A1 reservation FAILED for Client 2 (Seat was reserved by another thread during delay!)
+[Worker 2] [QUIT] Client 2 session ended
+[Worker 1] [DELAY] Simulating random delay: 342 ms for Seat A1
+[Worker 1] [UPDATE] CONFLICT / DOUBLE BOOKING: Seat A1 reservation FAILED for Client 3 (Seat was reserved by another thread during delay!)
+[Worker 3] [QUIT] Client 3 session ended
+[Worker 0] [DELAY] Simulating random delay: 404 ms for Seat A1
+[Worker 0] [UPDATE] CONFLICT / DOUBLE BOOKING: Seat A1 reservation FAILED for Client 5 (Seat was reserved by another thread during delay!)
+[Worker 2] [QUIT] Client 5 session ended
+[Worker 4] [DELAY] Simulating random delay: 469 ms for Seat A1
+[Worker 4] [UPDATE] CONFLICT / DOUBLE BOOKING: Seat A1 reservation FAILED for Client 4 (Seat was reserved by another thread during delay!)
+[Worker 1] [QUIT] Client 4 session ended
+[Worker 3] [LIST] Processing LIST request for Client 99
+[Worker 0] [STATUS] Checking status of Seat A1 for Client 99
+[Worker 2] [STATUS] Checking status of Seat A2 for Client 99
+[Worker 4] [STATUS] Checking status of Seat A3 for Client 99
+[Worker 1] [STATUS] Checking status of Seat A4 for Client 99
+[Worker 3] [STATUS] Checking status of Seat A5 for Client 99
+[Worker 0] [STATUS] Checking status of Seat B1 for Client 99
+[Worker 2] [STATUS] Checking status of Seat B2 for Client 99
+[Worker 4] [STATUS] Checking status of Seat B3 for Client 99
+[Worker 1] [STATUS] Checking status of Seat B4 for Client 99
+[Worker 3] [STATUS] Checking status of Seat B5 for Client 99
+[Worker 0] [STATUS] Checking status of Seat C1 for Client 99
+[Worker 2] [STATUS] Checking status of Seat C2 for Client 99
+[Worker 4] [STATUS] Checking status of Seat C3 for Client 99
+[Worker 1] [STATUS] Checking status of Seat C4 for Client 99
+[Worker 3] [STATUS] Checking status of Seat C5 for Client 99
+[Worker 0] [STATUS] Checking status of Seat D1 for Client 99
+[Worker 2] [STATUS] Checking status of Seat D2 for Client 99
+[Worker 4] [STATUS] Checking status of Seat D3 for Client 99
+[Worker 1] [STATUS] Checking status of Seat D4 for Client 99
+[Worker 3] [STATUS] Checking status of Seat D5 for Client 99
+[Worker 0] [QUIT] Client 99 session ended
+[Worker 4] Received QUIT sentinel. Shutting down worker thread...
+[Worker 0] Received QUIT sentinel. Shutting down worker thread...
+[Worker 1] Received QUIT sentinel. Shutting down worker thread...
+[Worker 3] Received QUIT sentinel. Shutting down worker thread...
+[Worker 2] Received QUIT sentinel. Shutting down worker thread...
+[Server] Shutdown complete. Resources unlinked cleanly.
