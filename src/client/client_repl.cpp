@@ -27,7 +27,7 @@ void ClientRepl::handle_list(std::ostream& out) {
     if (seat_map.empty()) {
         out << TerminalUi::format_error("Unable to retrieve seat map from server.") << "\n";
     } else {
-        out << TerminalUi::format_grid(seat_map) << "\n";
+        out << TerminalUi::format_grid(seat_map, true, client_.client_id()) << "\n";
     }
 }
 

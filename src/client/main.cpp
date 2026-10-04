@@ -60,7 +60,7 @@ int run_preview_mode() {
                 seat.owner_client_id().value_or(css223::common::kInvalidClientId);
             display_seats.push_back(std::move(info));
         }
-        return css223::client::TerminalUi::format_grid(display_seats);
+        return css223::client::TerminalUi::format_grid(display_seats, true, 1);
     };
 
     std::cout << render_grid() << "\n";
