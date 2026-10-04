@@ -27,6 +27,10 @@
 namespace css223::client {
 
 bool TerminalUi::is_interactive() noexcept {
+    const char* force = std::getenv("CSS223_FORCE_COLOR");
+    if (force != nullptr && (std::string_view(force) == "1" || std::string_view(force) == "true")) {
+        return true;
+    }
 #if defined(__linux__) || defined(__unix__)
     return ::isatty(STDOUT_FILENO) != 0;
 #else
@@ -455,30 +459,39 @@ std::string TerminalUi::format_grid(const std::vector<SeatDisplayInfo>& seats,
     if (use_color) {
         out << "\n"
             << colors::kDim
-            << "╭──────────────────────────────────────────────────────────────────────────────────"
-               "────╮\n"
-            << "│" << colors::kReset << colors::kBold << colors::kBrightYellow
-            << "                   ░▒▓██████  C I N E M A   S C R E E N  ██████▓▒░                 "
-               "   "
-            << colors::kReset << colors::kDim << "│\n"
-            << "│" << colors::kReset << colors::kCyan
-            << "                       ◄◄◄   DOLBY ATMOS • LASER IMAX   ►►►                        "
-               "   "
-            << colors::kReset << colors::kDim << "│\n"
-            << "╰──────────────────────────────────────────────────────────────────────────────────"
-               "────╯\n"
+            << "       "
+               ".─────────────────────────────────────────────────────────────────────────────.\n"
+            << "      / " << colors::kReset << colors::kBold << colors::kBrightYellow
+            << "        ░▒▓█████████   C I N E M A   S C R E E N   █████████▓▒░        "
+            << colors::kReset << colors::kDim << "     \\\n"
+            << "     /  " << colors::kReset << colors::kBold << colors::kBrightCyan
+            << "           ◄◄◄   DOLBY VISION • 4K DUAL LASER IMAX • ATMOS   ►►►          "
+            << colors::kReset << colors::kDim << "    \\\n"
+            << "    "
+               "'─────────────────────────────────────────────────────────────────────────────'\n"
+            << "     \\  " << colors::kReset << colors::kDim << colors::kBrightYellow
+            << "  :   .   :   .   * * *   AMBIENT PROJECTION GLOW   * * *   .   :   .   :  "
+            << colors::kReset << colors::kDim << "  /\n"
+            << "      "
+               "\\___________________________________________________________________________/\n"
+            << colors::kReset << "\n"
             << colors::kDim
             << "╭──────────────────────────────────────────────────────────────────────────────────"
-               "────╮\n"
-            << "│  " << colors::kReset << colors::kBold << "LEGEND:  " << colors::kReset
-            << colors::kDim << "[" << colors::kReset << colors::kBrightGreen << " A1 • FREE "
-            << colors::kDim << "] Available   " << "[" << colors::kReset << colors::kBold
-            << colors::kBrightYellow << " A1 ★ (ME) " << colors::kDim << "] Your Seat   " << "["
-            << colors::kReset << colors::kBrightRed << " A1 🔒C#02 " << colors::kDim
-            << "] Booked   " << "│\n"
+               "───────────╮\n"
+            << "│  " << colors::kReset << colors::kBold << "AUDITORIUM TIERS:  " << colors::kReset
+            << colors::kBold << colors::kBrightYellow << "👑 Row A: VIP Recliner (฿320)  "
+            << colors::kReset << colors::kBold << colors::kBrightCyan
+            << "│  💎 Row B: Premier (฿280)  " << colors::kReset << colors::kBold
+            << colors::kBrightGreen << "│  💺 Rows C-D: Standard (฿240) " << colors::kReset
+            << colors::kDim << "│\n"
+            << "│  " << colors::kReset << colors::kBold << "SEAT STATUS:       " << colors::kReset
+            << colors::kBrightGreen << "🟢 [ FREE ] Available          " << colors::kReset
+            << colors::kBold << colors::kBrightYellow << "│  🟡 [ ★ (ME) ] Your Booking"
+            << colors::kReset << colors::kBrightRed << "│  🔴 [ 🔒C#ID ] Booked        "
+            << colors::kReset << colors::kDim << "│\n"
             << "╰──────────────────────────────────────────────────────────────────────────────────"
-               "────╯\n"
-            << colors::kReset << "\n";
+               "───────────╯\n\n"
+            << colors::kReset;
     } else {
         out << "\n"
             << "  +------------------------------------------------------------------+\n"
@@ -508,29 +521,53 @@ std::string TerminalUi::format_grid(const std::vector<SeatDisplayInfo>& seats,
             }
             current_row = row_char;
             if (use_color) {
-                out << "  " << colors::kBold << colors::kWhite << "Row " << current_row << ":"
-                    << colors::kReset << "   ";
+                if (current_row == 'A') {
+                    out << "      " << colors::kBold << colors::kBrightYellow
+                        << "👑 Row A [VIP]:  " << colors::kReset;
+                } else if (current_row == 'B') {
+                    out << "    " << colors::kBold << colors::kBrightCyan
+                        << "💎 Row B [PREM]: " << colors::kReset;
+                } else if (current_row == 'C') {
+                    out << "  " << colors::kBold << colors::kBrightGreen
+                        << "💺 Row C [STD]:  " << colors::kReset;
+                } else {
+                    out << "  " << colors::kBold << colors::kBrightGreen
+                        << "💺 Row D [STD]:  " << colors::kReset;
+                }
             } else {
                 out << "  Row " << current_row << ":  ";
             }
         } else {
-            out << (use_color ? "   " : " ");
+            out << (use_color ? "  " : " ");
         }
 
         std::ostringstream token;
         if (use_color) {
+            std::string_view icon = "💺";
+            std::string_view tier_color = colors::kBrightGreen;
+            if (current_row == 'A') {
+                icon = "👑";
+                tier_color = colors::kBrightYellow;
+            } else if (current_row == 'B') {
+                icon = "💎";
+                tier_color = colors::kBrightCyan;
+            }
+
             if (seat.status == core::SeatStatus::Available) {
-                token << colors::kDim << "[" << colors::kReset << colors::kBold << seat.seat_id
-                      << colors::kDim << " • " << colors::kReset << colors::kBrightGreen << "FREE"
-                      << colors::kDim << " ]" << colors::kReset;
+                token << colors::kDim << "[" << colors::kReset << colors::kBold << tier_color << " "
+                      << icon << " " << seat.seat_id << colors::kDim << " • " << colors::kReset
+                      << colors::kBold << tier_color << "FREE " << colors::kDim << "]"
+                      << colors::kReset;
             } else if (current_client_id != common::kInvalidClientId &&
                        seat.owner_client_id == current_client_id) {
-                token << colors::kDim << "[" << colors::kReset << colors::kBold << seat.seat_id
-                      << colors::kDim << " ★ " << colors::kReset << colors::kBold
-                      << colors::kBrightYellow << "(ME)" << colors::kDim << " ]" << colors::kReset;
+                token << colors::kDim << "[" << colors::kReset << colors::kBold
+                      << colors::kBrightYellow << " " << icon << " " << seat.seat_id << colors::kDim
+                      << " ★ " << colors::kReset << colors::kBold << colors::kBrightYellow
+                      << "(ME) " << colors::kDim << "]" << colors::kReset;
             } else {
-                token << colors::kDim << "[" << colors::kReset << colors::kBold << seat.seat_id
-                      << colors::kDim << " 🔒" << colors::kReset << colors::kBrightRed << "C#"
+                token << colors::kDim << "[" << colors::kReset << colors::kBold
+                      << colors::kBrightRed << " " << icon << " " << seat.seat_id << colors::kDim
+                      << " 🔒" << colors::kReset << colors::kBold << colors::kBrightRed << "C#"
                       << std::setfill('0') << std::setw(2) << seat.owner_client_id << colors::kDim
                       << " ]" << colors::kReset;
             }
@@ -579,12 +616,13 @@ std::string TerminalUi::format_grid(const std::vector<SeatDisplayInfo>& seats,
 
     if (use_color) {
         out << colors::kDim
-            << "──────────────────────────────────────────────────────────────────────────────────"
-               "────\n"
-            << colors::kReset << "  Box Office: Total = " << total_seats << "  |  "
+            << "───────────────────────────────────────────────────────────────────────────────────"
+               "──────────\n"
+            << colors::kReset << "  Box Office: Total = " << total_seats << "  │  "
             << colors::kBrightGreen << "Available = " << available_count << colors::kReset
-            << "  |  " << colors::kBrightYellow << "Reserved = " << reserved_count << colors::kReset
-            << "  |  Dolby Status: " << colors::kBrightCyan << "ONLINE" << colors::kReset << "\n"
+            << "  │  " << colors::kBrightYellow << "Reserved = " << reserved_count << colors::kReset
+            << "  │  Sound: " << colors::kBrightCyan << "DOLBY ATMOS 3D DUAL LASER"
+            << colors::kReset << "\n"
             << "  " << colors::kBold << "THEATER CAPACITY : " << colors::kReset << colors::kDim
             << "[" << colors::kReset << bar_color << filled_bar << colors::kReset << colors::kDim
             << empty_bar << colors::kReset << colors::kDim << "]  " << colors::kReset
@@ -592,8 +630,8 @@ std::string TerminalUi::format_grid(const std::vector<SeatDisplayInfo>& seats,
             << occupancy_pct << "%" << colors::kReset << colors::kDim << "  (" << reserved_count
             << "/" << total_seats << " Booked)\n"
             << colors::kDim
-            << "──────────────────────────────────────────────────────────────────────────────────"
-               "────\n"
+            << "───────────────────────────────────────────────────────────────────────────────────"
+               "──────────\n"
             << colors::kReset;
     } else {
         out << "  --------------------------------------------------------------------\n"
