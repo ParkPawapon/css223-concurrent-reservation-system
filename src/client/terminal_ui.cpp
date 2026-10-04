@@ -48,7 +48,7 @@ int TerminalUi::get_terminal_width() noexcept {
     }
 
 #if defined(__linux__) || defined(__unix__)
-    struct winsize window_size{};
+    struct winsize window_size {};
     if (::ioctl(STDOUT_FILENO, TIOCGWINSZ, &window_size) == 0 && window_size.ws_col >= 40) {
         return static_cast<int>(window_size.ws_col);
     }
