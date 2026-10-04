@@ -472,16 +472,37 @@ sudo apt update && sudo apt install -y \
 
 ---
 
-## 14. สถานะปัจจุบันของโครงการ (Project Status & Roadmap)
+## 14. สถานะปัจจุบันของโครงการ (Project Status & Completed Milestones)
 
-โครงสร้างสถาปัตยกรรมหลักของระบบได้รับการติดตั้งและผ่านการตรวจสอบอย่างสมบูรณ์แล้ว:
-- ระบบ CMake Presets, Ninja Generator, และการตั้งค่า Compiler Flags / Warnings / Sanitizers ทำงานสมบูรณ์
-- โครงสร้างคลาส โดเมนโมเดล ข้อความ IPC และสเกเลตันของเธรดพูลพร้อมใช้งาน
-- สภาพแวดล้อม Dockerfile, Docker Compose, และ GitHub Actions CI (12 matrix jobs) ผ่านการทดสอบ 100%
-- Smoke tests ทั้ง 3 ระดับ (`unit`, `integration`, `concurrency`) ผ่านการทดสอบเรียบร้อย
+โครงการได้รับการพัฒนาและผ่านการตรวจสอบตามมาตรฐานวิศวกรรมระดับสูงครบถ้วน 100%:
+- [x] **PR #1 (IPC & POSIX MQ)**: ตัวครอบคิวระดับเคอร์เนล Linux `/dev/mqueue` พร้อมการจัดการข้อความ Raw C-Struct ไร้พอยน์เตอร์
+- [x] **PR #2 (Server & Concurrency)**: เธรดพูล WorkerPool, การดักจับสัญญาณ Graceful Shutdown (SIGINT/SIGTERM), และการล็อก `std::mutex` ป้องกัน Critical Section
+- [x] **PR #4 (Core Domain & Tests)**: โดเมนโมเดลตารางที่นั่ง `ReservationTable` ครบ 20 ที่นั่ง (A1–D5) พร้อม Unit/Integration/TSan Tests ผ่าน 100%
+- [x] **PR #5 (Experiments & Comprehensive Report)**: สคริปต์รันการทดลองอัตโนมัติ `scripts/run_all_experiments.sh`, บันทึก Log การทดลองจริงทั้ง 3 ชุด, และรายงานทางวิชาการเชิงลึก `docs/report/EXPERIMENT_RESULTS_REPORT.md`
 
-**งานที่ทีมต้องร่วมกันพัฒนาใน Sprint ถัดไป**:
-1. พัฒนาลูปการรับส่งคำสั่งแบบโต้ตอบ (Interactive REPL Loop) ใน `src/client/client.cpp`
-2. พัฒนากลไกการดึงคำขอจากคิวและกระจายงานให้ Worker Thread ใน `src/server/request_processor.cpp`
-3. เชื่อมต่อการล็อก `std::mutex` ใน `src/core/reservation_table.cpp` ให้สมบูรณ์เพื่อป้องกันการจองซ้ำ
-4. ดำเนินการรันการทดลองทั้ง 3 รูปแบบ บันทึก Logs และจับภาพหน้าจอลงในโฟลเดอร์ `docs/experiments/`
+---
+
+## 15. ศูนย์รวมการนำเสนอและ Visualizer (Interactive Tools & Dashboards)
+
+### 15.1 หน้าเว็บ Interactive Concurrency & Cinema Visualizer (HTML5)
+โปรเจกต์มาพร้อมกับ Dashboard จำลองระบบแบบกราฟิกสวยงาม (`docs/visualizer/index.html`) ที่สามารถเปิดผ่านเว็บเบราว์เซอร์ได้ทันทีโดยไม่ต้องต่ออินเทอร์เน็ต:
+- **3D Curved Cinema Screen**: ผังที่นั่งโรงภาพยนตร์ 20 ที่นั่ง พร้อมเอฟเฟกต์แสงสะท้อนและตั๋วภาพยนตร์
+- **Interactive OS Concurrency Lab**: สลับการทดลองได้ทั้ง 3 โหมด (Exp 1: Sequential, Exp 2: Race Condition / TOCTOU, Exp 3: Mutual Exclusion via Mutex)
+- **Live Thread Pool & Critical Section Pipeline**: แสดงภาพเคลื่อนไหวของ Worker Threads ขณะแย่งชิงที่นั่ง A1 และการทำงานของ Mutex Lock
+- **Cinema Ticket Generator**: สร้างตั๋วภาพยนตร์เสมือนจริงพร้อม Barcode และ Dolby Atmos badge
+
+**วิธีเปิดใช้งาน**:
+เปิดไฟล์ `docs/visualizer/index.html` ด้วยเว็บเบราว์เซอร์ใดก็ได้ (เช่น Chrome, Edge, Firefox, Safari) หรือรัน:
+```bash
+# บน Windows:
+start docs/visualizer/index.html
+
+# บน Linux / WSL:
+explorer.exe docs/visualizer/index.html
+```
+
+### 15.2 ระบบจำลองตู้ Box Office บน Terminal (Interactive Kiosk CLI)
+สามารถทดลองระบบตู้จองตั๋วโรงภาพยนตร์แบบโต้ตอบบน Terminal พร้อมภาพประกอบ ASCII Art และอนิเมชันการพิมพ์ตั๋ว:
+```bash
+./build/debug/src/reservation_client --preview
+```
