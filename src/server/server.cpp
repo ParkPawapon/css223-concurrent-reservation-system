@@ -72,7 +72,9 @@ bool Server::start() {
                 continue;
             }
 
-            if (!running_.load() || request.command == common::CommandType::Quit) {
+            if (!running_.load() ||
+                (request.command == common::CommandType::Quit &&
+                 request.client_id == common::kInvalidClientId)) {
                 {
                     std::lock_guard<std::mutex> lock(g_worker_quit_log_mutex);
                     std::cout << "[Worker " << worker_id
