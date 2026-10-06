@@ -6,16 +6,18 @@
 #include <string>
 #include <string_view>
 
+#include "client/terminal_ui.hpp"
 #include "common/command.hpp"
 
 namespace css223::client {
 
 std::optional<ParsedCommand> CommandParser::parse_line(std::string_view input_line) {
-    if (input_line.empty()) {
+    std::string sanitized = TerminalUi::sanitize_input(input_line);
+    if (sanitized.empty()) {
         return std::nullopt;
     }
 
-    std::istringstream stream{std::string(input_line)};
+    std::istringstream stream{sanitized};
     std::string verb;
     if (!(stream >> verb)) {
         return std::nullopt;
@@ -31,25 +33,25 @@ std::optional<ParsedCommand> CommandParser::parse_line(std::string_view input_li
         return help_cmd;
     }
 
-    if (verb == "CLEAR" || verb == "CLS" || verb == "7") {
+    if (verb == "CLEAR" || verb == "CLS" || verb == "REFRESH" || verb == "7") {
         ParsedCommand clear_cmd{};
         clear_cmd.is_clear = true;
         return clear_cmd;
     }
 
-    if (verb == "EXIT" || verb == "Q" || verb == "6") {
+    if (verb == "EXIT" || verb == "QUIT" || verb == "Q" || verb == "6") {
         ParsedCommand exit_cmd{};
         exit_cmd.type = common::CommandType::Quit;
         return exit_cmd;
     }
 
-    if (verb == "1") {
+    if (verb == "1" || verb == "L") {
         verb = "LIST";
-    } else if (verb == "2") {
+    } else if (verb == "2" || verb == "R") {
         verb = "RESERVE";
-    } else if (verb == "3") {
+    } else if (verb == "3" || verb == "S") {
         verb = "STATUS";
-    } else if (verb == "4") {
+    } else if (verb == "4" || verb == "C") {
         verb = "CANCEL";
     }
 

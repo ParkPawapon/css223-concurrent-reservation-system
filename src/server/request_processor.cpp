@@ -22,6 +22,7 @@ std::mutex g_log_mutex;
 void log_worker(std::size_t worker_id, std::string_view step, std::string_view message) {
     std::lock_guard<std::mutex> lock(g_log_mutex);
     std::cout << "[Worker " << worker_id << "] [" << step << "] " << message << "\n";
+    std::cout.flush();
 }
 
 } // namespace
