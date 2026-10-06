@@ -107,16 +107,100 @@ void ClientRepl::handle_quit(std::ostream& out) {
 }
 
 void ClientRepl::run(std::istream& in, std::ostream& out) {
-    TerminalUi::show_welcome_banner(out, client_.client_id(), true);
+    TerminalUi::init_signal_handlers();
+
+    if (!TerminalUi::is_interactive()) {
+        TerminalUi::show_welcome_banner(out, client_.client_id(), false);
+        std::string line;
+        while (true) {
+            out << TerminalUi::format_prompt(client_.client_id(), false);
+            out.flush();
+
+            if (!std::getline(in, line)) {
+                handle_quit(out);
+                break;
+            }
+
+            auto parsed = CommandParser::parse_line(line);
+            if (!parsed.has_value()) {
+                out << TerminalUi::format_error(
+                           "Unknown command syntax. Type 'HELP' for instructions.", false)
+                    << "\n";
+                continue;
+            }
+
+            if (parsed->is_help) {
+                handle_help(out);
+                continue;
+            }
+
+            if (parsed->is_clear) {
+                handle_list(out);
+                continue;
+            }
+
+            switch (parsed->type) {
+                case common::CommandType::List:
+                    handle_list(out);
+                    break;
+                case common::CommandType::Status:
+                    handle_status(parsed->seat_id, out);
+                    break;
+                case common::CommandType::Reserve:
+                    handle_reserve(parsed->seat_id, out);
+                    break;
+                case common::CommandType::Cancel:
+                    handle_cancel(parsed->seat_id, out);
+                    break;
+                case common::CommandType::Quit:
+                    handle_quit(out);
+                    return;
+                case common::CommandType::Unknown:
+                default:
+                    out << TerminalUi::format_error(
+                               "Unknown command. Type 'HELP' for instructions.", false)
+                        << "\n";
+                    break;
+            }
+        }
+        return;
+    }
+
+    // Interactive Kiosk Mode
+    std::vector<SeatDisplayInfo> current_seats = client_.fetch_seat_map();
+    std::string feedback_msg;
+    std::string feedback_type;
+    std::string ticket_seat_id;
+
+    auto redraw = [&]() {
+        TerminalUi::render_kiosk_view(
+            out, current_seats, client_.client_id(), feedback_msg, feedback_type, ticket_seat_id);
+    };
+
+    redraw();
 
     std::string line;
     while (true) {
-        out << TerminalUi::format_prompt(client_.client_id());
-        out.flush();
+        if (TerminalUi::has_resized()) {
+            TerminalUi::reset_resized();
+            redraw();
+        }
 
         if (!std::getline(in, line)) {
+            if (TerminalUi::has_resized()) {
+                in.clear();
+                TerminalUi::reset_resized();
+                redraw();
+                continue;
+            }
             handle_quit(out);
             break;
+        }
+
+        line = TerminalUi::sanitize_input(line);
+        if (line.empty()) {
+            redraw();
+            continue;
         }
 
         auto parsed = CommandParser::parse_line(line);
@@ -130,9 +214,6 @@ void ClientRepl::run(std::istream& in, std::ostream& out) {
                    std::isspace(static_cast<unsigned char>(trimmed.back())) != 0) {
                 trimmed.remove_suffix(1);
             }
-            if (trimmed.empty()) {
-                continue;
-            }
 
             // Interactive prompts for number shortcuts
             if (trimmed == "2" || trimmed == "RESERVE" || trimmed == "reserve") {
@@ -140,10 +221,27 @@ void ClientRepl::run(std::istream& in, std::ostream& out) {
                 out.flush();
                 std::string seat;
                 if (std::getline(in, seat)) {
+                    seat = TerminalUi::sanitize_input(seat);
                     for (auto& c : seat) {
                         c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
                     }
-                    handle_reserve(seat, out);
+                    auto resp = client_.request_reserve(seat);
+                    if (resp.has_value() && resp->result == common::StatusCode::Success) {
+                        current_seats = client_.fetch_seat_map();
+                        ticket_seat_id = seat;
+                        feedback_msg = "Seat " + seat + " reserved successfully for Client " +
+                                       std::to_string(client_.client_id()) + ".";
+                        feedback_type = "SUCCESS";
+                    } else {
+                        ticket_seat_id = "";
+                        std::string err = resp.has_value()
+                                              ? std::string(ipc::buffer_to_string_view(
+                                                    resp->message, sizeof(resp->message)))
+                                              : "Server timeout";
+                        feedback_msg = "Reservation failed for Seat " + seat + ": " + err;
+                        feedback_type = "FAILED";
+                    }
+                    redraw();
                     continue;
                 }
             } else if (trimmed == "3" || trimmed == "STATUS" || trimmed == "status") {
@@ -151,10 +249,28 @@ void ClientRepl::run(std::istream& in, std::ostream& out) {
                 out.flush();
                 std::string seat;
                 if (std::getline(in, seat)) {
+                    seat = TerminalUi::sanitize_input(seat);
                     for (auto& c : seat) {
                         c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
                     }
-                    handle_status(seat, out);
+                    auto resp = client_.request_status(seat);
+                    ticket_seat_id = "";
+                    if (resp.has_value() && resp->result == common::StatusCode::Success) {
+                        SeatDisplayInfo info{};
+                        info.seat_id = seat;
+                        info.status = resp->status;
+                        info.owner_client_id = resp->owner_client_id;
+                        feedback_msg = SeatMapFormatter::format_single_seat(info);
+                        feedback_type = "INFO";
+                    } else {
+                        std::string err = resp.has_value()
+                                              ? std::string(ipc::buffer_to_string_view(
+                                                    resp->message, sizeof(resp->message)))
+                                              : "Server timeout";
+                        feedback_msg = "Seat " + seat + " check failed: " + err;
+                        feedback_type = "FAILED";
+                    }
+                    redraw();
                     continue;
                 }
             } else if (trimmed == "4" || trimmed == "CANCEL" || trimmed == "cancel") {
@@ -162,50 +278,131 @@ void ClientRepl::run(std::istream& in, std::ostream& out) {
                 out.flush();
                 std::string seat;
                 if (std::getline(in, seat)) {
+                    seat = TerminalUi::sanitize_input(seat);
                     for (auto& c : seat) {
                         c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
                     }
-                    handle_cancel(seat, out);
+                    ticket_seat_id = "";
+                    auto resp = client_.request_cancel(seat);
+                    if (resp.has_value() && resp->result == common::StatusCode::Success) {
+                        current_seats = client_.fetch_seat_map();
+                        feedback_msg = "Reservation for Seat " + seat + " cancelled.";
+                        feedback_type = "SUCCESS";
+                    } else {
+                        std::string err = resp.has_value()
+                                              ? std::string(ipc::buffer_to_string_view(
+                                                    resp->message, sizeof(resp->message)))
+                                              : "Server timeout";
+                        feedback_msg = "Cancellation failed for Seat " + seat + ": " + err;
+                        feedback_type = "FAILED";
+                    }
+                    redraw();
                     continue;
                 }
             }
 
-            out << TerminalUi::format_error("Unknown command syntax. Type 'HELP' for instructions.")
-                << "\n";
+            ticket_seat_id = "";
+            feedback_msg = "Unknown command syntax. Type 'HELP' for instructions.";
+            feedback_type = "FAILED";
+            redraw();
             continue;
         }
 
         if (parsed->is_help) {
-            handle_help(out);
+            ticket_seat_id = "";
+            feedback_msg = "Select: 1 (LIST), 2 <seat> (RESERVE), 3 <seat> (STATUS), 4 <seat> "
+                           "(CANCEL), 6 (QUIT)";
+            feedback_type = "INFO";
+            redraw();
             continue;
         }
 
         if (parsed->is_clear) {
-            TerminalUi::clear_screen(out);
-            handle_list(out);
+            ticket_seat_id = "";
+            feedback_msg = "";
+            feedback_type = "";
+            current_seats = client_.fetch_seat_map();
+            redraw();
             continue;
         }
 
         switch (parsed->type) {
             case common::CommandType::List:
-                handle_list(out);
+                ticket_seat_id = "";
+                current_seats = client_.fetch_seat_map();
+                feedback_msg = "Seat table listed successfully";
+                feedback_type = "INFO";
+                redraw();
                 break;
-            case common::CommandType::Status:
-                handle_status(parsed->seat_id, out);
+            case common::CommandType::Status: {
+                ticket_seat_id = "";
+                auto resp = client_.request_status(parsed->seat_id);
+                if (resp.has_value() && resp->result == common::StatusCode::Success) {
+                    SeatDisplayInfo info{};
+                    info.seat_id = std::string(parsed->seat_id);
+                    info.status = resp->status;
+                    info.owner_client_id = resp->owner_client_id;
+                    feedback_msg = SeatMapFormatter::format_single_seat(info);
+                    feedback_type = "INFO";
+                } else {
+                    std::string err = resp.has_value() ? std::string(ipc::buffer_to_string_view(
+                                                             resp->message, sizeof(resp->message)))
+                                                       : "Server timeout";
+                    feedback_msg = "Seat " + std::string(parsed->seat_id) + " check failed: " + err;
+                    feedback_type = "FAILED";
+                }
+                redraw();
                 break;
-            case common::CommandType::Reserve:
-                handle_reserve(parsed->seat_id, out);
+            }
+            case common::CommandType::Reserve: {
+                auto resp = client_.request_reserve(parsed->seat_id);
+                if (resp.has_value() && resp->result == common::StatusCode::Success) {
+                    current_seats = client_.fetch_seat_map();
+                    ticket_seat_id = std::string(parsed->seat_id);
+                    feedback_msg = "Seat " + std::string(parsed->seat_id) +
+                                   " reserved successfully for Client " +
+                                   std::to_string(client_.client_id()) + ".";
+                    feedback_type = "SUCCESS";
+                } else {
+                    ticket_seat_id = "";
+                    std::string err = resp.has_value() ? std::string(ipc::buffer_to_string_view(
+                                                             resp->message, sizeof(resp->message)))
+                                                       : "Server timeout";
+                    feedback_msg =
+                        "Reservation failed for Seat " + std::string(parsed->seat_id) + ": " + err;
+                    feedback_type = "FAILED";
+                }
+                redraw();
                 break;
-            case common::CommandType::Cancel:
-                handle_cancel(parsed->seat_id, out);
+            }
+            case common::CommandType::Cancel: {
+                ticket_seat_id = "";
+                auto resp = client_.request_cancel(parsed->seat_id);
+                if (resp.has_value() && resp->result == common::StatusCode::Success) {
+                    current_seats = client_.fetch_seat_map();
+                    feedback_msg =
+                        "Reservation for Seat " + std::string(parsed->seat_id) + " cancelled.";
+                    feedback_type = "SUCCESS";
+                } else {
+                    std::string err = resp.has_value() ? std::string(ipc::buffer_to_string_view(
+                                                             resp->message, sizeof(resp->message)))
+                                                       : "Server timeout";
+                    feedback_msg =
+                        "Cancellation failed for Seat " + std::string(parsed->seat_id) + ": " + err;
+                    feedback_type = "FAILED";
+                }
+                redraw();
                 break;
+            }
             case common::CommandType::Quit:
                 handle_quit(out);
                 return;
             case common::CommandType::Unknown:
             default:
-                out << TerminalUi::format_error("Unknown command. Type 'HELP' for instructions.")
-                    << "\n";
+                ticket_seat_id = "";
+                feedback_msg = "Unknown command. Type 'HELP' for instructions.";
+                feedback_type = "FAILED";
+                redraw();
                 break;
         }
     }

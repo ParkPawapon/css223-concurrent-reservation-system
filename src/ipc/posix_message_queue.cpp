@@ -73,7 +73,7 @@ PosixMessageQueue PosixMessageQueue::open_or_create(std::string_view name,
     }
 
 #if defined(__linux__) || defined(__unix__)
-    struct mq_attr attr {};
+    struct mq_attr attr{};
     attr.mq_maxmsg = config.max_messages;
     attr.mq_msgsize = config.max_message_size;
     constexpr mode_t kQueuePermissions = 0660;
@@ -83,7 +83,7 @@ PosixMessageQueue PosixMessageQueue::open_or_create(std::string_view name,
     if (mqd == kInvalidMqd && errno == EEXIST) {
         mqd = ::mq_open(name_str.c_str(), O_RDWR);
         if (mqd != kInvalidMqd) {
-            struct mq_attr existing_attr {};
+            struct mq_attr existing_attr{};
             if (::mq_getattr(mqd, &existing_attr) == -1 ||
                 existing_attr.mq_msgsize != config.max_message_size ||
                 existing_attr.mq_maxmsg != config.max_messages) {

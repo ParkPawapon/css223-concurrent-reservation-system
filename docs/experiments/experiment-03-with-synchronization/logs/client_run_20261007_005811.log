@@ -1,0 +1,26 @@
+======================================================================
+CSS223 Concurrent Clients Simulator
+Target Seat : A1
+Client Count: 5 (IDs: 1 to 5)
+Executable  : ./build/debug/src/reservation_client
+======================================================================
+[Launcher] Started Client 1 (PID 5139) in background
+[Launcher] Started Client 2 (PID 5141) in background
+[Launcher] Started Client 3 (PID 5144) in background
+[Launcher] Started Client 4 (PID 5146) in background
+[Launcher] Started Client 5 (PID 5149) in background
+----------------------------------------------------------------------
+[Launcher] Waiting for all 5 clients to complete...
+[Launcher] All client processes finished.
+======================================================================
+Results Summary for Seat: A1
+======================================================================
+  Client 1: [FAILED]  Reservation REJECTED
+  Client 2: [SUCCESS] Reservation GRANTED
+  Client 3: [FAILED]  Reservation REJECTED
+  Client 4: [FAILED]  Reservation REJECTED
+  Client 5: [FAILED]  Reservation REJECTED
+----------------------------------------------------------------------
+Total Clients: 5 | Successes: 1 | Failures: 4
+>> [OBSERVATION] Exactly ONE reservation succeeded. (Mutual exclusion preserved)
+======================================================================

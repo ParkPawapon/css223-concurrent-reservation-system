@@ -43,14 +43,14 @@ void print_usage(std::string_view program_name) {
 }
 
 int run_preview_mode() {
-    css223::client::TerminalUi::show_welcome_banner(std::cout, 1, true);
+    css223::client::TerminalUi::init_signal_handlers();
 
     css223::core::ReservationTable demo_table;
     demo_table.reserve_seat("A1", 1);
     demo_table.reserve_seat("B3", 2);
     demo_table.reserve_seat("C2", 1);
 
-    auto render_grid = [&demo_table]() {
+    auto get_display_seats = [&demo_table]() {
         std::vector<css223::client::SeatDisplayInfo> display_seats;
         for (const auto& seat : demo_table.get_all_seats()) {
             css223::client::SeatDisplayInfo info{};
@@ -60,22 +60,52 @@ int run_preview_mode() {
                 seat.owner_client_id().value_or(css223::common::kInvalidClientId);
             display_seats.push_back(std::move(info));
         }
-        return css223::client::TerminalUi::format_grid(display_seats, true, 1);
+        return display_seats;
     };
 
-    std::cout << render_grid() << "\n";
+    std::string feedback_msg;
+    std::string feedback_type;
+    std::string ticket_seat_id;
+
+    auto redraw = [&]() {
+        if (css223::client::TerminalUi::is_interactive()) {
+            css223::client::TerminalUi::render_kiosk_view(
+                std::cout, get_display_seats(), 1, feedback_msg, feedback_type, ticket_seat_id);
+        } else {
+            std::cout << css223::client::TerminalUi::format_grid(get_display_seats(), false, 1)
+                      << "\n";
+            std::cout << css223::client::TerminalUi::format_prompt(1, false);
+            std::cout.flush();
+        }
+    };
+
+    redraw();
 
     std::string line;
     while (true) {
-        std::cout << css223::client::TerminalUi::format_prompt(1);
-        std::cout.flush();
+        if (css223::client::TerminalUi::has_resized()) {
+            css223::client::TerminalUi::reset_resized();
+            redraw();
+        }
 
         if (!std::getline(std::cin, line)) {
+            if (css223::client::TerminalUi::has_resized()) {
+                std::cin.clear();
+                css223::client::TerminalUi::reset_resized();
+                redraw();
+                continue;
+            }
             std::cout << "\n"
                       << css223::client::TerminalUi::format_info(
                              "Leaving Cinema Theater. See you next show!")
                       << "\n";
             break;
+        }
+
+        line = css223::client::TerminalUi::sanitize_input(line);
+        if (line.empty()) {
+            redraw();
+            continue;
         }
 
         auto parsed = css223::client::CommandParser::parse_line(line);
@@ -89,9 +119,6 @@ int run_preview_mode() {
                    std::isspace(static_cast<unsigned char>(trimmed.back())) != 0) {
                 trimmed.remove_suffix(1);
             }
-            if (trimmed.empty()) {
-                continue;
-            }
 
             // Interactive prompts for number shortcuts
             if (trimmed == "2" || trimmed == "RESERVE" || trimmed == "reserve") {
@@ -100,20 +127,21 @@ int run_preview_mode() {
                 std::cout.flush();
                 std::string seat;
                 if (std::getline(std::cin, seat)) {
+                    seat = css223::client::TerminalUi::sanitize_input(seat);
                     for (auto& c : seat) {
                         c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
                     }
                     if (demo_table.reserve_seat(seat, 1)) {
-                        css223::client::TerminalUi::animate_ticket_print(std::cout, seat, 1);
-                        css223::client::TerminalUi::print_ticket_stub(std::cout, seat, 1);
-                        std::string msg = "Seat " + seat + " reserved successfully for Client 1.";
-                        std::cout << css223::client::TerminalUi::format_success(msg) << "\n";
-                        std::cout << render_grid() << "\n";
+                        ticket_seat_id = seat;
+                        feedback_msg = "Seat " + seat + " reserved successfully for Client 1.";
+                        feedback_type = "SUCCESS";
                     } else {
-                        std::string msg =
+                        ticket_seat_id = "";
+                        feedback_msg =
                             "Reservation failed: Seat " + seat + " is already reserved or invalid.";
-                        std::cout << css223::client::TerminalUi::format_error(msg) << "\n";
+                        feedback_type = "FAILED";
                     }
+                    redraw();
                     continue;
                 }
             } else if (trimmed == "3" || trimmed == "STATUS" || trimmed == "status") {
@@ -122,6 +150,7 @@ int run_preview_mode() {
                 std::cout.flush();
                 std::string seat;
                 if (std::getline(std::cin, seat)) {
+                    seat = css223::client::TerminalUi::sanitize_input(seat);
                     for (auto& c : seat) {
                         c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
                     }
@@ -132,14 +161,15 @@ int run_preview_mode() {
                         info.status = seat_info->status();
                         info.owner_client_id =
                             seat_info->owner_client_id().value_or(css223::common::kInvalidClientId);
-                        std::cout << css223::client::TerminalUi::format_info(
-                                         css223::client::SeatMapFormatter::format_single_seat(info))
-                                  << "\n";
+                        ticket_seat_id = "";
+                        feedback_msg = css223::client::SeatMapFormatter::format_single_seat(info);
+                        feedback_type = "INFO";
                     } else {
-                        std::cout << css223::client::TerminalUi::format_error("Invalid seat ID: " +
-                                                                              seat)
-                                  << "\n";
+                        ticket_seat_id = "";
+                        feedback_msg = "Invalid seat ID: " + seat;
+                        feedback_type = "FAILED";
                     }
+                    redraw();
                     continue;
                 }
             } else if (trimmed == "4" || trimmed == "CANCEL" || trimmed == "cancel") {
@@ -148,44 +178,57 @@ int run_preview_mode() {
                 std::cout.flush();
                 std::string seat;
                 if (std::getline(std::cin, seat)) {
+                    seat = css223::client::TerminalUi::sanitize_input(seat);
                     for (auto& c : seat) {
                         c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
                     }
+                    ticket_seat_id = "";
                     if (demo_table.cancel_seat(seat, 1)) {
-                        std::string msg = "Reservation for Seat " + seat + " cancelled.";
-                        std::cout << css223::client::TerminalUi::format_success(msg) << "\n";
-                        std::cout << render_grid() << "\n";
+                        feedback_msg = "Reservation for Seat " + seat + " cancelled.";
+                        feedback_type = "SUCCESS";
                     } else {
-                        std::string msg =
+                        feedback_msg =
                             "Cancellation failed: Seat " + seat + " was not reserved by Client 1.";
-                        std::cout << css223::client::TerminalUi::format_error(msg) << "\n";
+                        feedback_type = "FAILED";
                     }
+                    redraw();
                     continue;
                 }
             }
 
-            std::cout << css223::client::TerminalUi::format_error(
-                             "Unknown command syntax. Type 'HELP' for instructions.")
-                      << "\n";
+            ticket_seat_id = "";
+            feedback_msg = "Unknown command syntax. Type 'HELP' for instructions.";
+            feedback_type = "FAILED";
+            redraw();
             continue;
         }
 
         if (parsed->is_help) {
-            css223::client::TerminalUi::show_help_box(std::cout);
+            ticket_seat_id = "";
+            feedback_msg = "Select: 1 (LIST), 2 <seat> (RESERVE), 3 <seat> (STATUS), 4 <seat> "
+                           "(CANCEL), 6 (QUIT)";
+            feedback_type = "INFO";
+            redraw();
             continue;
         }
 
         if (parsed->is_clear) {
-            css223::client::TerminalUi::clear_screen(std::cout);
-            std::cout << render_grid() << "\n";
+            ticket_seat_id = "";
+            feedback_msg = "";
+            feedback_type = "";
+            redraw();
             continue;
         }
 
         switch (parsed->type) {
             case css223::common::CommandType::List:
-                std::cout << render_grid() << "\n";
+                ticket_seat_id = "";
+                feedback_msg = "Seat table listed successfully";
+                feedback_type = "INFO";
+                redraw();
                 break;
             case css223::common::CommandType::Status: {
+                ticket_seat_id = "";
                 auto seat = demo_table.get_seat(parsed->seat_id);
                 if (seat.has_value()) {
                     css223::client::SeatDisplayInfo info{};
@@ -193,54 +236,56 @@ int run_preview_mode() {
                     info.status = seat->status();
                     info.owner_client_id =
                         seat->owner_client_id().value_or(css223::common::kInvalidClientId);
-                    std::cout << css223::client::TerminalUi::format_info(
-                                     css223::client::SeatMapFormatter::format_single_seat(info))
-                              << "\n";
+                    feedback_msg = css223::client::SeatMapFormatter::format_single_seat(info);
+                    feedback_type = "INFO";
                 } else {
-                    std::cout << css223::client::TerminalUi::format_error(
-                                     "Invalid seat ID: " + std::string(parsed->seat_id))
-                              << "\n";
+                    feedback_msg = "Invalid seat ID: " + std::string(parsed->seat_id);
+                    feedback_type = "FAILED";
                 }
+                redraw();
                 break;
             }
             case css223::common::CommandType::Reserve: {
                 if (demo_table.reserve_seat(parsed->seat_id, 1)) {
-                    css223::client::TerminalUi::animate_ticket_print(std::cout, parsed->seat_id, 1);
-                    css223::client::TerminalUi::print_ticket_stub(std::cout, parsed->seat_id, 1);
-                    std::string msg = "Seat " + std::string(parsed->seat_id) +
-                                      " reserved successfully for Client 1.";
-                    std::cout << css223::client::TerminalUi::format_success(msg) << "\n";
-                    std::cout << render_grid() << "\n";
+                    ticket_seat_id = std::string(parsed->seat_id);
+                    feedback_msg = "Seat " + std::string(parsed->seat_id) +
+                                   " reserved successfully for Client 1.";
+                    feedback_type = "SUCCESS";
                 } else {
-                    std::string msg = "Reservation failed: Seat " + std::string(parsed->seat_id) +
-                                      " is already reserved or invalid.";
-                    std::cout << css223::client::TerminalUi::format_error(msg) << "\n";
+                    ticket_seat_id = "";
+                    feedback_msg = "Reservation failed: Seat " + std::string(parsed->seat_id) +
+                                   " is already reserved or invalid.";
+                    feedback_type = "FAILED";
                 }
+                redraw();
                 break;
             }
             case css223::common::CommandType::Cancel: {
+                ticket_seat_id = "";
                 if (demo_table.cancel_seat(parsed->seat_id, 1)) {
-                    std::string msg =
+                    feedback_msg =
                         "Reservation for Seat " + std::string(parsed->seat_id) + " cancelled.";
-                    std::cout << css223::client::TerminalUi::format_success(msg) << "\n";
-                    std::cout << render_grid() << "\n";
+                    feedback_type = "SUCCESS";
                 } else {
-                    std::string msg = "Cancellation failed: Seat " + std::string(parsed->seat_id) +
-                                      " was not reserved by Client 1.";
-                    std::cout << css223::client::TerminalUi::format_error(msg) << "\n";
+                    feedback_msg = "Cancellation failed: Seat " + std::string(parsed->seat_id) +
+                                   " was not reserved by Client 1.";
+                    feedback_type = "FAILED";
                 }
+                redraw();
                 break;
             }
             case css223::common::CommandType::Quit:
-                std::cout << css223::client::TerminalUi::format_info(
+                std::cout << "\n"
+                          << css223::client::TerminalUi::format_info(
                                  "Leaving Cinema Theater. See you next show!")
                           << "\n";
                 return EXIT_SUCCESS;
             case css223::common::CommandType::Unknown:
             default:
-                std::cout << css223::client::TerminalUi::format_error(
-                                 "Unknown command. Type 'HELP' for instructions.")
-                          << "\n";
+                ticket_seat_id = "";
+                feedback_msg = "Unknown command. Type 'HELP' for instructions.";
+                feedback_type = "FAILED";
+                redraw();
                 break;
         }
     }

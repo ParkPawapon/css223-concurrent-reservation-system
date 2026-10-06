@@ -107,10 +107,10 @@ void test_interrupted_send() {
 } // namespace
 
 int main() {
-    struct sigaction action {};
+    struct sigaction action{};
     action.sa_handler = handle_signal;
     ::sigemptyset(&action.sa_mask);
-    struct sigaction previous_action {};
+    struct sigaction previous_action{};
     if (::sigaction(SIGUSR1, &action, &previous_action) != 0) {
         return EXIT_FAILURE;
     }

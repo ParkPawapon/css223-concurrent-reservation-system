@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <csignal>
 #include <cstddef>
 #include <cstdlib>
 #include <iomanip>
@@ -39,16 +40,8 @@ bool TerminalUi::is_interactive() noexcept {
 }
 
 int TerminalUi::get_terminal_width() noexcept {
-    const char* env_col = std::getenv("COLUMNS");
-    if (env_col != nullptr) {
-        int parsed = std::atoi(env_col);
-        if (parsed >= 40) {
-            return parsed;
-        }
-    }
-
 #if defined(__linux__) || defined(__unix__)
-    struct winsize window_size {};
+    struct winsize window_size{};
     if (::ioctl(STDOUT_FILENO, TIOCGWINSZ, &window_size) == 0 && window_size.ws_col >= 40) {
         return static_cast<int>(window_size.ws_col);
     }
@@ -64,6 +57,15 @@ int TerminalUi::get_terminal_width() noexcept {
         ::close(tty_fd);
     }
 #endif
+
+    const char* env_col = std::getenv("COLUMNS");
+    if (env_col != nullptr) {
+        int parsed = std::atoi(env_col);
+        if (parsed >= 40) {
+            return parsed;
+        }
+    }
+
     return 120; // default widescreen width
 }
 
@@ -105,50 +107,103 @@ std::size_t TerminalUi::visual_width(std::string_view line) noexcept {
     return width;
 }
 
-std::string TerminalUi::center_line(std::string_view line, int width) {
-    if (!is_interactive() || line.empty()) {
-        return std::string(line);
+namespace {
+
+volatile std::sig_atomic_t g_terminal_resized = 0;
+
+#if defined(__linux__) || defined(__unix__)
+void sigwinch_handler(int) {
+    g_terminal_resized = 1;
+}
+#endif
+
+} // namespace
+
+void TerminalUi::init_signal_handlers() noexcept {
+#if defined(__linux__) || defined(__unix__)
+    struct sigaction sa{};
+    sa.sa_handler = sigwinch_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGWINCH, &sa, nullptr);
+#endif
+}
+
+bool TerminalUi::has_resized() noexcept {
+    return g_terminal_resized != 0;
+}
+
+void TerminalUi::reset_resized() noexcept {
+    g_terminal_resized = 0;
+}
+
+std::string TerminalUi::get_padding(int width) noexcept {
+    if (!is_interactive()) {
+        return "";
     }
     if (width <= 0) {
         width = get_terminal_width();
     }
-    std::size_t vwidth = visual_width(line);
-    if (static_cast<int>(vwidth) >= width) {
+    if (static_cast<std::size_t>(width) > kStandardBlockWidth) {
+        return std::string((static_cast<std::size_t>(width) - kStandardBlockWidth) / 2, ' ');
+    }
+    return "";
+}
+
+std::string TerminalUi::sanitize_input(std::string_view input) {
+    std::string result;
+    result.reserve(input.size());
+    std::size_t i = 0;
+    while (i < input.size()) {
+        if (input[i] == '\033' || input[i] == '\x1b') {
+            ++i;
+            if (i < input.size() && input[i] == '[') {
+                ++i;
+                while (i < input.size() &&
+                       (std::isdigit(static_cast<unsigned char>(input[i])) || input[i] == ';' ||
+                        input[i] == '?' || input[i] == ' ')) {
+                    ++i;
+                }
+                if (i < input.size()) {
+                    ++i;
+                }
+            } else if (i < input.size() && input[i] == 'O') {
+                i += 2;
+            }
+            continue;
+        }
+        if (input[i] == '\r') {
+            ++i;
+            continue;
+        }
+        result.push_back(input[i]);
+        ++i;
+    }
+    std::size_t start = 0;
+    while (start < result.size() && std::isspace(static_cast<unsigned char>(result[start])) != 0) {
+        ++start;
+    }
+    std::size_t end = result.size();
+    while (end > start && std::isspace(static_cast<unsigned char>(result[end - 1])) != 0) {
+        --end;
+    }
+    return result.substr(start, end - start);
+}
+
+std::string TerminalUi::center_line(std::string_view line, int width) {
+    if (!is_interactive() || line.empty()) {
         return std::string(line);
     }
-    std::size_t pad = (static_cast<std::size_t>(width) - vwidth) / 2;
-    return std::string(pad, ' ') + std::string(line);
+    return get_padding(width) + std::string(line);
 }
 
 std::string TerminalUi::center_block(std::string_view block, int width) {
     if (!is_interactive() || block.empty()) {
         return std::string(block);
     }
-    if (width <= 0) {
-        width = get_terminal_width();
-    }
-
-    std::size_t max_width = 0;
-    std::size_t start = 0;
-    while (start < block.size()) {
-        std::size_t end = block.find('\n', start);
-        if (end == std::string_view::npos) {
-            end = block.size();
-        }
-        std::string_view line = block.substr(start, end - start);
-        std::size_t vw = visual_width(line);
-        max_width = std::max(max_width, vw);
-        start = end + 1;
-    }
-
-    std::size_t pad = 0;
-    if (static_cast<std::size_t>(width) > max_width) {
-        pad = (static_cast<std::size_t>(width) - max_width) / 2;
-    }
-
-    std::string pad_str(pad, ' ');
+    std::string pad_str = get_padding(width);
     std::ostringstream result;
-    start = 0;
+    std::size_t start = 0;
     while (start < block.size()) {
         std::size_t end = block.find('\n', start);
         if (end == std::string_view::npos) {
@@ -180,13 +235,13 @@ void TerminalUi::animate_ticket_print(std::ostream& out,
         return;
     }
     std::ostringstream ticket;
-    ticket << colors::kBold << colors::kBrightYellow
-           << "╔═══════════════════════════════════════════════════════════════════════════════════"
-              "═══╗\n"
-           << "║  🎟️  DISPENSING CINEMA TICKET: Seat " << seat_id << " for Client #" << client_id
-           << "  •  DOLBY LASER PASS   ║\n"
-           << "╚═══════════════════════════════════════════════════════════════════════════════════"
-              "═══╝"
+    ticket << colors::kBrandLine
+           << "┌─ RESERVATION COMMIT ───────────────────────────────────────────────────────────┐\n"
+           << "│  " << colors::kBrandBlue << colors::kBold << "WRITE" << colors::kReset
+           << colors::kBrandWhite << "  seat " << seat_id << " → client " << client_id
+           << colors::kBrandMuted << "  / validating mutex-protected state...                    "
+           << colors::kBrandLine << "│\n"
+           << "└───────────────────────────────────────────────────────────────────────────────┘"
            << colors::kReset;
     out << "\n" << center_block(ticket.str()) << "\n";
     out.flush();
@@ -201,38 +256,43 @@ void TerminalUi::print_ticket_stub(std::ostream& out,
 
     std::ostringstream ss;
     if (interactive) {
-        ss << colors::kBrightYellow
-           << ".───────────────────────────────────────────────────────────────────────────────────"
-              "───.\n"
-           << "│ " << colors::kReset << colors::kBold << colors::kBrightYellow
-           << " 🎬  C S S 2 2 3   C I N E M A   T H E A T E R                     ★ ADMIT ONE ★    "
-              " "
-           << colors::kReset << colors::kBrightYellow << "│\n"
-           << "├──────────────────────────────────────────────────────────────┬────────────────────"
-              "───┤\n"
-           << "│ " << colors::kReset << colors::kDim << "FEATURE : " << colors::kReset
-           << colors::kBold << "CONCURRENT CINEMA: THE THREAD OF FATE            "
-           << colors::kBrightYellow << "│ " << colors::kReset << colors::kDim
-           << "AUDITORIUM : " << colors::kReset << colors::kCyan << "IMAX 01 "
-           << colors::kBrightYellow << "│\n"
-           << "│ " << colors::kReset << colors::kDim << "SEAT    : " << colors::kReset
-           << colors::kBold << colors::kBrightGreen << std::left << std::setw(4) << seat_id
-           << colors::kReset << colors::kDim << "(DOLBY LASER PREMIUM RESERVED)           "
-           << colors::kBrightYellow << "│ " << colors::kReset << colors::kDim
-           << "ROW        : " << colors::kReset << colors::kBold << row_char << "       "
-           << colors::kBrightYellow << "│\n"
-           << "│ " << colors::kReset << colors::kDim << "OWNER   : " << colors::kReset
-           << colors::kBold << colors::kBrightYellow << "CLIENT #" << std::left << std::setw(2)
-           << client_id << colors::kReset << colors::kDim
-           << " (POSIX MESSAGE QUEUE VERIFIED)       " << colors::kBrightYellow << "│ "
-           << colors::kReset << colors::kDim << "SOUND      : " << colors::kReset << colors::kCyan
-           << "ATMOS   " << colors::kBrightYellow << "│\n"
-           << "│ " << colors::kReset << colors::kDim << "PRICE   : " << colors::kReset
-           << "฿240.00 (PAID • SYSTEM SYNCHRONIZED)          " << colors::kBrightYellow << "│ "
-           << colors::kReset << colors::kDim << "STATUS     : " << colors::kReset
-           << colors::kBrightGreen << "BOOKED  " << colors::kBrightYellow << "│\n"
-           << "'──────────────────────────────────────────────────────────────┴────────────────────"
-              "───'"
+        int width = get_terminal_width();
+        std::string pad = get_padding(width);
+        ss << pad << colors::kBrandLine
+           << "┌─ CSS223 / RESERVATION RECEIPT "
+              "──────────────────────────────────────────────────────────────┐\n"
+           << pad << "│  " << colors::kBrandBlue << colors::kBold << "🎬  CSS223 CINEMA THEATER"
+           << colors::kReset << colors::kBrandMuted
+           << "                                             ★ " << colors::kBrandWarning
+           << "ADMIT ONE" << colors::kBrandMuted << " ★        " << colors::kBrandLine << "│\n"
+           << pad
+           << "├───────────────────────────────────────────────────────────────────────────────────"
+              "───────────┤\n"
+           << pad << "│  " << colors::kBrandMuted << "FEATURE   : " << colors::kBrandWhite
+           << colors::kBold << std::left << std::setw(42) << "CONCURRENT CINEMA: THE THREAD OF FATE"
+           << colors::kReset << colors::kBrandLine << "│ " << colors::kBrandMuted
+           << "AUDITORIUM : " << colors::kBrandWhite << colors::kBold << std::left << std::setw(15)
+           << "IMAX 01" << colors::kReset << colors::kBrandLine << "│\n"
+           << pad << "│  " << colors::kBrandMuted << "SEAT      : " << colors::kBrandWarning
+           << colors::kBold << std::left << std::setw(42)
+           << (std::string(seat_id) + " (DOLBY LASER PREMIUM)") << colors::kReset
+           << colors::kBrandLine << "│ " << colors::kBrandMuted
+           << "ROW        : " << colors::kBrandWhite << colors::kBold << std::left << std::setw(15)
+           << std::string(1, row_char) << colors::kReset << colors::kBrandLine << "│\n"
+           << pad << "│  " << colors::kBrandMuted << "OWNER     : " << colors::kBrandWhite
+           << colors::kBold << std::left << std::setw(42)
+           << ("CLIENT #" + std::to_string(client_id) + " (POSIX MQ)") << colors::kReset
+           << colors::kBrandLine << "│ " << colors::kBrandMuted
+           << "SYNC       : " << colors::kBrandBlueSoft << colors::kBold << std::left
+           << std::setw(15) << "MUTEX VERIFIED" << colors::kReset << colors::kBrandLine << "│\n"
+           << pad << "│  " << colors::kBrandMuted << "PRICE     : " << colors::kBrandSuccess
+           << colors::kBold << std::left << std::setw(42) << "฿240.00 (PAID • SYSTEM SYNCHRONIZED)"
+           << colors::kReset << colors::kBrandLine << "│ " << colors::kBrandMuted
+           << "STATUS     : " << colors::kBrandSuccess << colors::kBold << std::left
+           << std::setw(15) << "BOOKED" << colors::kReset << colors::kBrandLine << "│\n"
+           << pad << colors::kBrandLine
+           << "└───────────────────────────────────────────────────────────────────────────────────"
+              "───────────┘\n"
            << colors::kReset;
     } else {
         ss << ".───────────────────────────────────────────────────────────────────────────────────"
@@ -265,59 +325,52 @@ void TerminalUi::show_welcome_banner(std::ostream& out, common::ClientId client_
     if (should_animate) {
         clear_screen(out);
 
-        // Animation: Film Reel Projector Countdown
+        // Short, deterministic boot sequence inspired by INTECH's precise visual language.
         const std::vector<std::string_view> kProjectorFrames = {
-            "[ 📽️  FILM REEL: 🎞️  •  •  •  • ]   THREADING 35MM CINEMA FILM...",
-            "[ 📽️  FILM REEL: •  🎞️  •  •  • ]   POWERING DOLBY ATMOS AUDIO...",
-            "[ 📽️  FILM REEL: •  •  🎞️  •  • ]   CALIBRATING 4K LASER IMAX...",
-            "[ 📽️  FILM REEL: •  •  •  •  🎞️ ]   CURTAIN OPENING! ACTION!",
+            "01 / BOOT     POSIX MESSAGE QUEUE",
+            "02 / VERIFY   MUTEX-PROTECTED STATE",
+            "03 / READY    CONCURRENT RESERVATION SYSTEM",
         };
 
         for (const auto& frame : kProjectorFrames) {
             out << "\033[2K\r"
-                << center_line(std::string(colors::kBold) + std::string(colors::kBrightCyan) +
+                << center_line(std::string(colors::kBold) + std::string(colors::kBrandBlue) +
                                std::string(frame) + std::string(colors::kReset));
             out.flush();
-            std::this_thread::sleep_for(std::chrono::milliseconds(60));
+            std::this_thread::sleep_for(std::chrono::milliseconds(70));
         }
-        out << "\033[2K\r"; // Clear line cleanly
+        out << "\033[2K\r";
         out.flush();
     }
 
-    // Authentic 88-Column Clapperboard
-    const std::string kClapperSnap =
-        "                     *  *  *   N O W   S H O W I N G   *  *  *\n"
-        "       .========================================================================.\n"
-        "       |   //    //    //    //    //    //    //    //    //    //    //    //  |\n"
-        "       |___//____//____//____//____//____//____//____//____//____//____//____//__|\n"
-        "       +========================================================================+\n"
-        "       |  🎬  * C L A P ! *               |  SCENE: 01       |  TAKE: 01 ACTION |\n"
-        "       |  TITLE: CSS223 CONCURRENT CINEMA |  DATE : 2026     |  FPS : 24 RAW    |\n"
-        "       |  SYNC : MUTEX (EXP 1, 2, 3)      |  IPC  : POSIX MQ |  OS  : LINUX C17 |\n"
-        "       +========================================================================+";
-
     if (interactive) {
-        out << center_block(kClapperSnap) << "\n\n";
-
-        // Marquee
-        std::string title_line1 = "★  ★  ★   N O W   S H O W I N G   ★  ★  ★";
-        std::string title_line2 = "WELCOME TO CSS223 CINEMA THEATER";
-        std::string title_line3 = "Multi-Threaded Server & Concurrent Client System";
-
-        out << center_line(std::string(colors::kBrightYellow) + title_line1 +
-                           std::string(colors::kReset))
-            << "\n"
-            << center_line(std::string(colors::kBold) + std::string(colors::kBrightGreen) +
-                           title_line2 + std::string(colors::kReset))
-            << "\n"
-            << center_line(std::string(colors::kDim) + title_line3 + std::string(colors::kReset))
-            << "\n\n";
+        std::ostringstream hero;
+        hero << colors::kBrandLine
+             << "┌─────────────────────────────────────────────────────────────────────────────────"
+                "─────────────┐\n"
+             << "│ " << colors::kBrandWhite << colors::kBold << "INTECH / CSS223" << colors::kReset
+             << colors::kBrandMuted
+             << "                                  POSIX MQ  ·  C++17  ·  MUTEX  ·  LINUX "
+             << colors::kBrandLine << "│\n"
+             << "├─────────────────────────────────────────────────────────────────────────────────"
+                "─────────────┤\n"
+             << "│ " << colors::kBrandBlue << colors::kBold
+             << "■──□──■   CONCURRENCY, WITHOUT COLLISIONS." << colors::kReset << colors::kBrandLine
+             << "                                             │\n"
+             << "│ " << colors::kBrandWhite << colors::kBold << "WELCOME TO CSS223 CINEMA THEATER"
+             << colors::kReset << colors::kBrandMuted
+             << "   Reliable reservations. Clear ownership. No double booking. "
+             << colors::kBrandLine << "│\n"
+             << "└─────────────────────────────────────────────────────────────────────────────────"
+                "─────────────┘"
+             << colors::kReset;
+        out << center_block(hero.str()) << "\n\n";
     } else {
         out << "\n"
-            << kClapperSnap << "\n\n"
-            << "               ★  ★  ★   NOW SHOWING   ★  ★  ★\n"
-            << "               WELCOME TO CSS223 CINEMA THEATER\n"
-            << "       Multi-Threaded Server & Concurrent Client System\n\n";
+            << "INTECH / CSS223\n"
+            << "CONCURRENCY, WITHOUT COLLISIONS.\n"
+            << "WELCOME TO CSS223 CINEMA THEATER\n"
+            << "Multi-Threaded Server & Concurrent Client System\n\n";
     }
 
     show_help_box(out);
@@ -325,10 +378,11 @@ void TerminalUi::show_welcome_banner(std::ostream& out, common::ClientId client_
     std::string conn_str = "Connected to Box Office as Client ID: " + std::to_string(client_id);
     if (interactive) {
         out << "\n"
-            << center_line(std::string(colors::kDim) +
-                           "Connected to Box Office as Client ID: " + std::string(colors::kReset) +
-                           std::string(colors::kBold) + std::string(colors::kBrightYellow) +
-                           std::to_string(client_id) + std::string(colors::kReset))
+            << center_line(std::string(colors::kBrandMuted) +
+                           "SESSION / Connected to Box Office as Client ID: " +
+                           std::string(colors::kReset) + std::string(colors::kBold) +
+                           std::string(colors::kBrandBlueSoft) + std::to_string(client_id) +
+                           std::string(colors::kReset))
             << "\n\n";
     } else {
         out << conn_str << "\n\n";
@@ -340,52 +394,27 @@ void TerminalUi::show_help_box(std::ostream& out) {
 
     if (interactive) {
         std::ostringstream ss;
-        ss << colors::kDim
-           << "╭───────────────────────────────────────────────────────────────────────────────────"
-              "───╮\n"
-           << "│ " << colors::kReset << colors::kBold
-           << "                🎟️   C I N E M A   B O X   O F F I C E   K I O S K  🎟️              "
-              "    "
-           << colors::kReset << colors::kDim << "│\n"
-           << "│ " << colors::kReset << colors::kDim
-           << "                    Box Office Counter • Command Selector                           "
-              "  "
-           << colors::kReset << colors::kDim << "│\n"
-           << "├───────────────────────────────────────────────────────────────────────────────────"
-              "───┤\n"
-           << "│                                                                                   "
-              "   │\n"
-           << "│   " << colors::kReset << colors::kBrightGreen << "[1] LIST" << colors::kReset
-           << "               View all 20 cinema seats & seating map                         "
-           << colors::kDim << "│\n"
-           << "│   " << colors::kReset << colors::kBrightCyan << "[2] RESERVE <seat_id>"
-           << colors::kReset << "   Book a cinema seat  (e.g. 2 A1 or RESERVE A1)                 "
-           << colors::kDim << "│\n"
-           << "│   " << colors::kReset << colors::kBrightYellow << "[3] STATUS  <seat_id>"
-           << colors::kReset << "   Inspect seat details (e.g. 3 A1 or STATUS A1)                 "
-           << colors::kDim << "│\n"
-           << "│   " << colors::kReset << colors::kBrightRed << "[4] CANCEL  <seat_id>"
-           << colors::kReset << "   Cancel reservation  (e.g. 4 A1 or CANCEL A1)                 "
-           << colors::kDim << "│\n"
-           << "│   " << colors::kReset << colors::kWhite << "[5] HELP / H" << colors::kReset
-           << "           Display this interactive command guide                        "
-           << colors::kDim << "│\n"
-           << "│   " << colors::kReset << colors::kMagenta << "[6] QUIT / EXIT" << colors::kReset
-           << "        Leave Cinema Theater & close session                          "
-           << colors::kDim << "│\n"
-           << "│   " << colors::kReset << colors::kBrightCyan << "[7] CLEAR / CLS" << colors::kReset
-           << "        Refresh & re-center Cinema Theater screen                     "
-           << colors::kDim << "│\n"
-           << "│                                                                                   "
-              "   │\n"
-           << "├───────────────────────────────────────────────────────────────────────────────────"
-              "───┤\n"
-           << "│ " << colors::kReset << colors::kDim
-           << "  💡 Quick Shortcuts: Type \"H\" for menu, \"1\" for map, \"2 A1\" to book, \"7\" "
-              "to clear! "
-           << colors::kReset << colors::kDim << "│\n"
-           << "╰───────────────────────────────────────────────────────────────────────────────────"
-              "───╯\n"
+        ss << colors::kBrandLine
+           << "┌─ 01 / BOX OFFICE COUNTER · COMMANDS "
+              "────────────────────────────────────────────────────────┐\n"
+           << "│  " << colors::kBrandBlue << colors::kBold << "[1] LIST" << colors::kReset
+           << colors::kBrandMuted << "  all seats        " << colors::kBrandBlueSoft
+           << colors::kBold << "[2] RESERVE <seat>" << colors::kReset << colors::kBrandMuted
+           << "  book        " << colors::kBrandBlueSoft << colors::kBold << "[3] STATUS <seat>"
+           << colors::kReset << colors::kBrandMuted << "  inspect   " << colors::kBrandLine << "│\n"
+           << "│  " << colors::kBrandDanger << colors::kBold << "[4] CANCEL <seat>"
+           << colors::kReset << colors::kBrandMuted << "  release   " << colors::kBrandWhite
+           << colors::kBold << "[5] HELP" << colors::kReset << colors::kBrandMuted << "  guide   "
+           << colors::kBrandWhite << colors::kBold << "[6] QUIT" << colors::kReset
+           << colors::kBrandMuted << "  exit   " << colors::kBrandWhite << colors::kBold
+           << "[7] CLEAR" << colors::kReset << colors::kBrandMuted << "  refresh                 "
+           << colors::kBrandLine << "│\n"
+           << "│  " << colors::kBrandMuted
+           << "Shortcuts: 1  ·  2 A1  ·  3 A1  ·  4 A1   /   direct commands are case-insensitive. "
+              "          "
+           << colors::kBrandLine << "│\n"
+           << "└───────────────────────────────────────────────────────────────────────────────────"
+              "──────────┘\n"
            << colors::kReset;
         out << center_block(ss.str());
     } else {
@@ -409,11 +438,18 @@ std::string TerminalUi::format_prompt(common::ClientId client_id, bool colorize)
     std::ostringstream ss;
     if (colorize && is_interactive()) {
         int width = get_terminal_width();
-        std::size_t pad = (width > 88) ? (static_cast<std::size_t>(width) - 88) / 2 : 0;
-        std::string pad_str(pad, ' ');
-        ss << pad_str << colors::kDim << "╭─ Ticket Booth #" << client_id
-           << " @ Cinema Theater ────────────────────────────────────────────────╮\n"
-           << pad_str << "╰─❯ " << colors::kReset << colors::kBold << colors::kBrightYellow;
+        std::string pad_str = get_padding(width);
+        std::string client_str = std::to_string(client_id);
+        std::size_t dashes_count = (kStandardBlockWidth > (20 + client_str.size()))
+                                       ? kStandardBlockWidth - 20 - client_str.size()
+                                       : 10;
+        std::string dashes_str;
+        for (std::size_t i = 0; i < dashes_count; ++i) {
+            dashes_str += "─";
+        }
+        ss << pad_str << colors::kBrandLine << "┌─ INPUT / CLIENT " << client_str << " "
+           << dashes_str << "╮\n"
+           << pad_str << "└─❯ " << colors::kReset << colors::kBold << colors::kBrandBlue;
     } else {
         ss << "Client[" << client_id << "]> ";
     }
@@ -423,7 +459,8 @@ std::string TerminalUi::format_prompt(common::ClientId client_id, bool colorize)
 std::string TerminalUi::format_success(std::string_view message, bool colorize) {
     std::ostringstream ss;
     if (colorize && is_interactive()) {
-        ss << colors::kBold << colors::kBrightGreen << "  [SUCCESS] " << colors::kReset << message;
+        ss << colors::kBold << colors::kBrandSuccess << "  [SUCCESS] " << colors::kReset
+           << colors::kBrandWhite << message << colors::kReset;
         return center_line(ss.str());
     }
     ss << "  [SUCCESS] " << message;
@@ -433,7 +470,8 @@ std::string TerminalUi::format_success(std::string_view message, bool colorize) 
 std::string TerminalUi::format_error(std::string_view message, bool colorize) {
     std::ostringstream ss;
     if (colorize && is_interactive()) {
-        ss << colors::kBold << colors::kBrightRed << "  [FAILED] " << colors::kReset << message;
+        ss << colors::kBold << colors::kBrandDanger << "  [FAILED] " << colors::kReset
+           << colors::kBrandWhite << message << colors::kReset;
         return center_line(ss.str());
     }
     ss << "  [FAILED] " << message;
@@ -443,7 +481,8 @@ std::string TerminalUi::format_error(std::string_view message, bool colorize) {
 std::string TerminalUi::format_info(std::string_view message, bool colorize) {
     std::ostringstream ss;
     if (colorize && is_interactive()) {
-        ss << colors::kBrightCyan << "  [INFO] " << colors::kReset << message;
+        ss << colors::kBrandBlueSoft << "  [INFO] " << colors::kReset << colors::kBrandWhite
+           << message << colors::kReset;
         return center_line(ss.str());
     }
     ss << "  [INFO] " << message;
@@ -458,39 +497,26 @@ std::string TerminalUi::format_grid(const std::vector<SeatDisplayInfo>& seats,
 
     if (use_color) {
         out << "\n"
-            << colors::kDim
-            << "       "
-               ".─────────────────────────────────────────────────────────────────────────────.\n"
-            << "      / " << colors::kReset << colors::kBold << colors::kBrightYellow
-            << "        ░▒▓█████████   C I N E M A   S C R E E N   █████████▓▒░        "
-            << colors::kReset << colors::kDim << "     \\\n"
-            << "     /  " << colors::kReset << colors::kBold << colors::kBrightCyan
-            << "           ◄◄◄   DOLBY VISION • 4K DUAL LASER IMAX • ATMOS   ►►►          "
-            << colors::kReset << colors::kDim << "    \\\n"
-            << "    "
-               "'─────────────────────────────────────────────────────────────────────────────'\n"
-            << "     \\  " << colors::kReset << colors::kDim << colors::kBrightYellow
-            << "  :   .   :   .   * * *   AMBIENT PROJECTION GLOW   * * *   .   :   .   :  "
-            << colors::kReset << colors::kDim << "  /\n"
-            << "      "
-               "\\___________________________________________________________________________/\n"
-            << colors::kReset << "\n"
-            << colors::kDim
-            << "╭──────────────────────────────────────────────────────────────────────────────────"
-               "───────────╮\n"
-            << "│  " << colors::kReset << colors::kBold << "AUDITORIUM TIERS:  " << colors::kReset
-            << colors::kBold << colors::kBrightYellow << "👑 Row A: VIP Recliner (฿320)  "
-            << colors::kReset << colors::kBold << colors::kBrightCyan
-            << "│  💎 Row B: Premier (฿280)  " << colors::kReset << colors::kBold
-            << colors::kBrightGreen << "│  💺 Rows C-D: Standard (฿240) " << colors::kReset
-            << colors::kDim << "│\n"
-            << "│  " << colors::kReset << colors::kBold << "SEAT STATUS:       " << colors::kReset
-            << colors::kBrightGreen << "🟢 [ FREE ] Available          " << colors::kReset
-            << colors::kBold << colors::kBrightYellow << "│  🟡 [ ★ (ME) ] Your Booking"
-            << colors::kReset << colors::kBrightRed << "│  🔴 [ 🔒C#ID ] Booked        "
-            << colors::kReset << colors::kDim << "│\n"
-            << "╰──────────────────────────────────────────────────────────────────────────────────"
-               "───────────╯\n\n"
+            << colors::kBrandLine
+            << "┌─ 02 / AUDITORIUM "
+               "────────────────────────────────────────────────────────────────────────────┐\n"
+            << "│ " << colors::kBrandBlue << colors::kBold
+            << "■────────□────────■        C I N E M A   S C R E E N        ■────────□────────■"
+            << colors::kReset << colors::kBrandLine << "              │\n"
+            << "│ " << colors::kBrandMuted
+            << "                         DOLBY VISION  ·  4K DUAL LASER  ·  ATMOS                  "
+               "           "
+            << colors::kBrandLine << "│\n"
+            << "└──────────────────────────────────────────────────────────────────────────────────"
+               "────────────┘\n"
+            << colors::kBrandMuted << "  TIERS   " << colors::kBrandWarning << "A / VIP ฿320"
+            << colors::kReset << colors::kBrandMuted << "  ·  " << colors::kBrandBlueSoft
+            << "B / PREM ฿280" << colors::kReset << colors::kBrandMuted << "  ·  "
+            << colors::kBrandWhite << "C-D / STD ฿240" << colors::kReset << colors::kBrandMuted
+            << "    STATUS   " << colors::kBrandSuccess << "■ FREE" << colors::kReset
+            << colors::kBrandMuted << "  " << colors::kBrandWarning << "■ MINE" << colors::kReset
+            << colors::kBrandMuted << "  " << colors::kBrandDanger << "■ BOOKED" << colors::kReset
+            << "\n\n"
             << colors::kReset;
     } else {
         out << "\n"
@@ -522,17 +548,14 @@ std::string TerminalUi::format_grid(const std::vector<SeatDisplayInfo>& seats,
             current_row = row_char;
             if (use_color) {
                 if (current_row == 'A') {
-                    out << "      " << colors::kBold << colors::kBrightYellow
-                        << "👑 Row A [VIP]:  " << colors::kReset;
+                    out << "    " << colors::kBold << colors::kBrandWarning << "A / VIP       "
+                        << colors::kReset;
                 } else if (current_row == 'B') {
-                    out << "    " << colors::kBold << colors::kBrightCyan
-                        << "💎 Row B [PREM]: " << colors::kReset;
-                } else if (current_row == 'C') {
-                    out << "  " << colors::kBold << colors::kBrightGreen
-                        << "💺 Row C [STD]:  " << colors::kReset;
+                    out << "    " << colors::kBold << colors::kBrandBlueSoft << "B / PREMIER   "
+                        << colors::kReset;
                 } else {
-                    out << "  " << colors::kBold << colors::kBrightGreen
-                        << "💺 Row D [STD]:  " << colors::kReset;
+                    out << "    " << colors::kBold << colors::kBrandWhite << current_row
+                        << " / STANDARD  " << colors::kReset;
                 }
             } else {
                 out << "  Row " << current_row << ":  ";
@@ -543,33 +566,29 @@ std::string TerminalUi::format_grid(const std::vector<SeatDisplayInfo>& seats,
 
         std::ostringstream token;
         if (use_color) {
-            std::string_view icon = "💺";
-            std::string_view tier_color = colors::kBrightGreen;
+            std::string_view tier_color = colors::kBrandWhite;
             if (current_row == 'A') {
-                icon = "👑";
-                tier_color = colors::kBrightYellow;
+                tier_color = colors::kBrandWarning;
             } else if (current_row == 'B') {
-                icon = "💎";
-                tier_color = colors::kBrightCyan;
+                tier_color = colors::kBrandBlueSoft;
             }
 
             if (seat.status == core::SeatStatus::Available) {
-                token << colors::kDim << "[" << colors::kReset << colors::kBold << tier_color << " "
-                      << icon << " " << seat.seat_id << colors::kDim << " • " << colors::kReset
-                      << colors::kBold << tier_color << "FREE " << colors::kDim << "]"
+                token << colors::kBrandLine << "[ " << colors::kReset << colors::kBold << tier_color
+                      << std::left << std::setw(2) << seat.seat_id << colors::kReset
+                      << colors::kBrandLine << " / " << colors::kReset << colors::kBrandSuccess
+                      << colors::kBold << "FREE " << colors::kReset << colors::kBrandLine << "]"
                       << colors::kReset;
             } else if (current_client_id != common::kInvalidClientId &&
                        seat.owner_client_id == current_client_id) {
-                token << colors::kDim << "[" << colors::kReset << colors::kBold
-                      << colors::kBrightYellow << " " << icon << " " << seat.seat_id << colors::kDim
-                      << " ★ " << colors::kReset << colors::kBold << colors::kBrightYellow
-                      << "(ME) " << colors::kDim << "]" << colors::kReset;
+                token << colors::kBrandWarning << "[ " << colors::kBold << std::left << std::setw(2)
+                      << seat.seat_id << " / MINE " << colors::kReset << colors::kBrandWarning
+                      << "]" << colors::kReset;
             } else {
-                token << colors::kDim << "[" << colors::kReset << colors::kBold
-                      << colors::kBrightRed << " " << icon << " " << seat.seat_id << colors::kDim
-                      << " 🔒" << colors::kReset << colors::kBold << colors::kBrightRed << "C#"
-                      << std::setfill('0') << std::setw(2) << seat.owner_client_id << colors::kDim
-                      << " ]" << colors::kReset;
+                token << colors::kBrandDanger << "[ " << colors::kBold << std::left << std::setw(2)
+                      << seat.seat_id << " / C" << std::setfill('0') << std::right << std::setw(2)
+                      << seat.owner_client_id << "  " << colors::kReset << colors::kBrandDanger
+                      << "]" << colors::kReset << std::setfill(' ') << std::left;
             }
             out << token.str();
         } else {
@@ -607,31 +626,31 @@ std::string TerminalUi::format_grid(const std::vector<SeatDisplayInfo>& seats,
         empty_bar += "░";
     }
 
-    std::string_view bar_color = colors::kBrightGreen;
+    std::string_view bar_color = colors::kBrandBlue;
     if (occupancy_pct >= 85.0) {
-        bar_color = colors::kBrightRed;
+        bar_color = colors::kBrandDanger;
     } else if (occupancy_pct >= 60.0) {
-        bar_color = colors::kBrightYellow;
+        bar_color = colors::kBrandWarning;
     }
 
     if (use_color) {
-        out << colors::kDim
+        out << colors::kBrandLine
             << "───────────────────────────────────────────────────────────────────────────────────"
-               "──────────\n"
-            << colors::kReset << "  Box Office: Total = " << total_seats << "  │  "
-            << colors::kBrightGreen << "Available = " << available_count << colors::kReset
-            << "  │  " << colors::kBrightYellow << "Reserved = " << reserved_count << colors::kReset
-            << "  │  Sound: " << colors::kBrightCyan << "DOLBY ATMOS 3D DUAL LASER"
-            << colors::kReset << "\n"
-            << "  " << colors::kBold << "THEATER CAPACITY : " << colors::kReset << colors::kDim
-            << "[" << colors::kReset << bar_color << filled_bar << colors::kReset << colors::kDim
-            << empty_bar << colors::kReset << colors::kDim << "]  " << colors::kReset
-            << colors::kBold << colors::kBrightYellow << std::fixed << std::setprecision(1)
-            << occupancy_pct << "%" << colors::kReset << colors::kDim << "  (" << reserved_count
-            << "/" << total_seats << " Booked)\n"
-            << colors::kDim
+               "────────────\n"
+            << colors::kBrandMuted << "  CAPACITY  " << colors::kReset << colors::kBrandWhite
+            << total_seats << " seats" << colors::kReset << colors::kBrandMuted << "   ·   "
+            << colors::kBrandSuccess << available_count << " available" << colors::kReset
+            << colors::kBrandMuted << "   ·   " << colors::kBrandWarning << reserved_count
+            << " reserved" << colors::kReset << colors::kBrandMuted << "   ·   "
+            << colors::kBrandBlueSoft << "mutex synchronized" << colors::kReset << "\n"
+            << colors::kBrandMuted << "  LOAD      [" << colors::kReset << bar_color << filled_bar
+            << colors::kReset << colors::kBrandLine << empty_bar << colors::kBrandMuted << "]  "
+            << colors::kReset << colors::kBold << colors::kBrandWhite << std::fixed
+            << std::setprecision(1) << occupancy_pct << "%" << colors::kReset << colors::kBrandMuted
+            << "  (" << reserved_count << "/" << total_seats << " booked)\n"
+            << colors::kBrandLine
             << "───────────────────────────────────────────────────────────────────────────────────"
-               "──────────\n"
+               "────────────\n"
             << colors::kReset;
     } else {
         out << "  --------------------------------------------------------------------\n"
@@ -647,6 +666,93 @@ std::string TerminalUi::format_grid(const std::vector<SeatDisplayInfo>& seats,
         return center_block(out.str());
     }
     return out.str();
+}
+
+void TerminalUi::render_kiosk_view(std::ostream& out,
+                                   const std::vector<SeatDisplayInfo>& seats,
+                                   common::ClientId client_id,
+                                   std::string_view feedback_msg,
+                                   std::string_view feedback_type,
+                                   std::string_view ticket_seat_id) {
+    if (!is_interactive()) {
+        return;
+    }
+
+    clear_screen(out);
+
+    int width = get_terminal_width();
+
+    // 1. Hero Banner
+    std::ostringstream hero;
+    hero << colors::kBrandLine
+         << "┌─────────────────────────────────────────────────────────────────────────────────────"
+            "─────────┐\n"
+         << "│ " << colors::kBrandWhite << colors::kBold << "INTECH / CSS223" << colors::kReset
+         << colors::kBrandMuted
+         << "                                  POSIX MQ  ·  C++17  ·  MUTEX  ·  LINUX      "
+         << colors::kBrandLine << "│\n"
+         << "├─────────────────────────────────────────────────────────────────────────────────────"
+            "─────────┤\n"
+         << "│ " << colors::kBrandBlue << colors::kBold
+         << "■──□──■   CONCURRENCY, WITHOUT COLLISIONS." << colors::kReset << colors::kBrandLine
+         << "                                             │\n"
+         << "│ " << colors::kBrandWhite << colors::kBold << "WELCOME TO CSS223 CINEMA THEATER"
+         << colors::kReset << colors::kBrandMuted
+         << "   Reliable reservations. Clear ownership. No double booking. " << colors::kBrandLine
+         << "│\n"
+         << "└─────────────────────────────────────────────────────────────────────────────────────"
+            "─────────┘\n"
+         << colors::kReset;
+    out << center_block(hero.str(), width) << "\n";
+
+    // 2. Help Box / Commands Menu
+    std::ostringstream help;
+    help << colors::kBrandLine
+         << "┌─ 01 / BOX OFFICE COUNTER · COMMANDS "
+            "─────────────────────────────────────────────────────────┐\n"
+         << "│  " << colors::kBrandBlue << colors::kBold << "[1] LIST" << colors::kReset
+         << colors::kBrandMuted << "  all seats        " << colors::kBrandBlueSoft << colors::kBold
+         << "[2] RESERVE <seat>" << colors::kReset << colors::kBrandMuted << "  book        "
+         << colors::kBrandBlueSoft << colors::kBold << "[3] STATUS <seat>" << colors::kReset
+         << colors::kBrandMuted << "  inspect    " << colors::kBrandLine << "│\n"
+         << "│  " << colors::kBrandDanger << colors::kBold << "[4] CANCEL <seat>" << colors::kReset
+         << colors::kBrandMuted << "  release    " << colors::kBrandWhite << colors::kBold
+         << "[5] HELP" << colors::kReset << colors::kBrandMuted << "  guide   "
+         << colors::kBrandWhite << colors::kBold << "[6] QUIT" << colors::kReset
+         << colors::kBrandMuted << "  exit   " << colors::kBrandWhite << colors::kBold
+         << "[7] CLEAR" << colors::kReset << colors::kBrandMuted << "  refresh                  "
+         << colors::kBrandLine << "│\n"
+         << "│  " << colors::kBrandMuted
+         << "Shortcuts: 1  ·  2 A1  ·  3 A1  ·  4 A1   /   direct commands are case-insensitive.   "
+            "       "
+         << colors::kBrandLine << "│\n"
+         << "└─────────────────────────────────────────────────────────────────────────────────────"
+            "─────────┘\n"
+         << colors::kReset;
+    out << center_block(help.str(), width) << "\n";
+
+    // 3. Auditorium Seat Grid
+    out << format_grid(seats, true, client_id) << "\n";
+
+    // 4. Ticket stub or feedback line
+    if (!ticket_seat_id.empty()) {
+        print_ticket_stub(out, ticket_seat_id, client_id);
+        out << "\n";
+    }
+
+    if (!feedback_msg.empty()) {
+        if (feedback_type == "SUCCESS") {
+            out << format_success(feedback_msg) << "\n\n";
+        } else if (feedback_type == "FAILED") {
+            out << format_error(feedback_msg) << "\n\n";
+        } else {
+            out << format_info(feedback_msg) << "\n\n";
+        }
+    }
+
+    // 5. Input Prompt Box
+    out << format_prompt(client_id, true);
+    out.flush();
 }
 
 } // namespace css223::client
