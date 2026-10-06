@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1600px;
+    height: 900px;
+    background: #090d16;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "JetBrains Mono", monospace;
+    overflow: hidden;
+  }
+  .window {
+    width: 1520px;
+    height: 840px;
+    background: #080c14;
+    border-radius: 12px;
+    border: 1px solid #1e293b;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .titlebar {
+    height: 44px;
+    background: #0b1120;
+    border-bottom: 1px solid #1e293b;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .dots {
+    display: flex;
+    gap: 8px;
+  }
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+  .dot-red { background: #ff5f56; }
+  .dot-yellow { background: #ffbd2e; }
+  .dot-green { background: #27c93f; }
+  .title {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #94a3b8;
+    font-size: 14px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    letter-spacing: 0.5px;
+  }
+  .badge {
+    margin-left: auto;
+    color: #41e1ab;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-weight: 600;
+  }
+  .terminal-body {
+    flex: 1;
+    background: #080c14;
+    padding: 32px 40px;
+    font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #f6f7ff;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .cmd-prompt {
+    color: #808eff;
+    font-weight: 600;
+    font-size: 17px;
+    margin-bottom: 8px;
+  }
+  .cmd-text {
+    color: #f6f7ff;
+  }
+  .muted { color: #8b92ab; font-size: 14.5px; }
+  .test-list {
+    margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .line-pass {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 0;
+  }
+  .test-idx { color: #8b92ab; min-width: 36px; }
+  .test-name { color: #f6f7ff; font-weight: 500; }
+  .dots-leader { color: #3c4465; flex: 1; margin: 0 14px; overflow: hidden; white-space: nowrap; font-size: 14px; }
+  .pass-badge {
+    color: #41e1ab;
+    font-weight: 700;
+    min-width: 80px;
+    text-align: right;
+  }
+  .duration { color: #8b92ab; min-width: 80px; text-align: right; }
+  .summary-box {
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid #1e293b;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .success-banner {
+    color: #41e1ab;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .category-summary {
+    color: #8b92ab;
+    font-size: 14.5px;
+    display: flex;
+    gap: 24px;
+  }
+  .cat-tag { color: #808eff; font-weight: 600; }
+  .cat-pass { color: #41e1ab; font-weight: 600; }
+  .tsan-callout {
+    background: rgba(65, 225, 171, 0.08);
+    border: 1px solid rgba(65, 225, 171, 0.25);
+    border-radius: 8px;
+    padding: 10px 18px;
+    text-align: right;
+  }
+  .tsan-title {
+    color: #41e1ab;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .tsan-sub {
+    color: #8b92ab;
+    font-size: 12.5px;
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+  <div class="window">
+    <div class="titlebar">
+      <div class="dots">
+        <div class="dot dot-red"></div>
+        <div class="dot dot-yellow"></div>
+        <div class="dot dot-green"></div>
+      </div>
+      <div class="title">ctest — Automated Test Suite & ThreadSanitizer Verification</div>
+      <div class="badge">● 100% PASSED (8/8)</div>
+    </div>
+    <div class="terminal-body">
+      <div>
+        <div class="cmd-prompt">
+          intech@css223:~$ <span class="cmd-text">ctest --test-dir build/sanitize-thread --output-on-failure</span>
+        </div>
+        <div class="muted">
+          Test project: css223-concurrent-reservation-system &nbsp;|&nbsp; Compiler: Clang 18 &nbsp;|&nbsp; Flags: -fsanitize=thread
+        </div>
+
+        <div class="test-list">
+          <div class="line-pass">
+            <span class="test-idx">1/8</span>
+            <span class="test-name">Test #1: unit_core_smoke_test</span>
+            <span class="dots-leader">··························································································</span>
+            <span class="pass-badge">Passed</span>
+            <span class="duration">0.02 sec</span>
+          </div>
+          <div class="line-pass">
+            <span class="test-idx">2/8</span>
+            <span class="test-name">Test #2: integration_ipc_smoke_test</span>
+            <span class="dots-leader">··························································································</span>
+            <span class="pass-badge">Passed</span>
+            <span class="duration">0.02 sec</span>
+          </div>
+          <div class="line-pass">
+            <span class="test-idx">3/8</span>
+            <span class="test-name">Test #3: client_integration_test</span>
+            <span class="dots-leader">··························································································</span>
+            <span class="pass-badge">Passed</span>
+            <span class="duration">0.03 sec</span>
+          </div>
+          <div class="line-pass">
+            <span class="test-idx">4/8</span>
+            <span class="test-name">Test #4: integration_ipc_queue_test</span>
+            <span class="dots-leader">··························································································</span>
+            <span class="pass-badge">Passed</span>
+            <span class="duration">0.03 sec</span>
+          </div>
+          <div class="line-pass">
+            <span class="test-idx">5/8</span>
+            <span class="test-name">Test #5: integration_ipc_eintr_test</span>
+            <span class="dots-leader">··························································································</span>
+            <span class="pass-badge">Passed</span>
+            <span class="duration">0.16 sec</span>
+          </div>
+          <div class="line-pass">
+            <span class="test-idx">6/8</span>
+            <span class="test-name">Test #6: integration_ipc_cleanup_test</span>
+            <span class="dots-leader">··························································································</span>
+            <span class="pass-badge">Passed</span>
+            <span class="duration">0.02 sec</span>
+          </div>
+          <div class="line-pass">
+            <span class="test-idx">7/8</span>
+            <span class="test-name">Test #7: concurrency_skeleton_smoke_test</span>
+            <span class="dots-leader">··························································································</span>
+            <span class="pass-badge">Passed</span>
+            <span class="duration">0.02 sec</span>
+          </div>
+          <div class="line-pass">
+            <span class="test-idx">8/8</span>
+            <span class="test-name">Test #8: concurrency_race_condition_test</span>
+            <span class="dots-leader">··························································································</span>
+            <span class="pass-badge">Passed</span>
+            <span class="duration">0.21 sec</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="summary-box">
+        <div>
+          <div class="success-banner">
+            ✔ 100% tests passed, 0 tests failed out of 8
+          </div>
+          <div class="category-summary">
+            <div><span class="cat-tag">concurrency</span>: 2 tests <span class="cat-pass">Passed</span></div>
+            <div><span class="cat-tag">integration</span>: 5 tests <span class="cat-pass">Passed</span></div>
+            <div><span class="cat-tag">unit</span>: 1 test <span class="cat-pass">Passed</span></div>
+          </div>
+        </div>
+
+        <div class="tsan-callout">
+          <div class="tsan-title">0 DATA RACES REPORTED</div>
+          <div class="tsan-sub">ThreadSanitizer v2 Memory Analysis Clean</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
