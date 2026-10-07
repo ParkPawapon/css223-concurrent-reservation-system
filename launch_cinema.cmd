@@ -4,6 +4,10 @@ cd /d "%~dp0"
 
 cls
 
-wsl.exe --cd "%~dp0." ./build/debug/src/reservation_client
+if "%~1"=="" (
+    wsl.exe --cd "%~dp0." ./build/debug/src/reservation_client 1
+) else (
+    wsl.exe --cd "%~dp0." ./build/debug/src/reservation_client %*
+)
 echo.
 pause
